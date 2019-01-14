@@ -110,6 +110,8 @@
     <Compile Include="Models\Address.cs" />
     <Compile Include="Models\CustomFields.cs" />
     <Compile Include="Models\DataMatchUploadRequestBody.cs" />
+    <Compile Include="Models\ErrorData.cs" />
+    <Compile Include="Models\DMUResponse.cs" />
     <Compile Include="Models\DataMatchUploadResponse.cs" />
     <Compile Include="Models\Interfaces\IDataMatchUploadService.cs" />
     <Compile Include="Models\LinkCompliance.cs" />

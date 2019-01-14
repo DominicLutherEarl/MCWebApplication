@@ -5,6 +5,7 @@ namespace Mc.TD.Upload.Domain.DataMatch
     public class Requestheader
     {
         [Required(AllowEmptyStrings = false, ErrorMessage = "orderId field is not present")]
+        [StringLength(maximumLength:10, MinimumLength = 8, ErrorMessage ="Length incorrect")]
         public string orderid { get; set; }
 
         [Required(AllowEmptyStrings = false, ErrorMessage = "ordertype field is not present")]
