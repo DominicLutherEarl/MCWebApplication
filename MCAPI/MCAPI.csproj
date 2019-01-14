@@ -109,6 +109,7 @@
     </Compile>
     <Compile Include="Models\Address.cs" />
     <Compile Include="Models\CustomFields.cs" />
+    <Compile Include="Models\DataMatchUploadResponseBody.cs" />
     <Compile Include="Models\DataMatchUploadRequestBody.cs" />
     <Compile Include="Models\ErrorData.cs" />
     <Compile Include="Models\DMUResponse.cs" />
@@ -116,7 +117,9 @@
     <Compile Include="Models\Interfaces\IDataMatchUploadService.cs" />
     <Compile Include="Models\LinkCompliance.cs" />
     <Compile Include="Models\Linking.cs" />
+    <Compile Include="Models\ResponseDetails.cs" />
     <Compile Include="Models\RequestDetails.cs" />
+    <Compile Include="Models\ResponseHeader.cs" />
     <Compile Include="Models\Requestheader.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

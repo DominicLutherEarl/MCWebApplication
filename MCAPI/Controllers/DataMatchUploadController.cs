@@ -30,13 +30,14 @@ namespace Mc.TD.Upload.Api.Controllers
         }
 
         [HttpPost]
+        [Route("1")]
         [ResponseType(typeof(DMUResponse))]
         public async Task<DMUResponse> PostMatchedDataFiles([FromBody] DataMatchUploadRequestBody UploadedFile)
         {
             DMUResponse _dMUResponse = new DMUResponse();
             if (!ModelState.IsValid)
             {
-                _dMUResponse.orderId = (UploadedFile.requestheader.orderid == null)?string.Empty:UploadedFile.requestheader.orderid;
+                _dMUResponse.orderId = (UploadedFile.requestheader.orderid == null) ? string.Empty : UploadedFile.requestheader.orderid;
                 _dMUResponse.errorData = new List<ErrorData>();
                 foreach (var field in ModelState.Keys)
                 {
@@ -72,42 +73,94 @@ namespace Mc.TD.Upload.Api.Controllers
             //return GenerateResponse(await _dataMatchUploadResponse.UploadDataMatchFile(UploadedFile, businessId, fileId));
         }
 
-        //[HttpPost]
-        //[ResponseType(typeof(DataMatchUploadResponse))]
-        //public async Task<DataMatchUploadResponse> PostMatchedDataFiles2([FromBody] DataMatchUploadRequestBody UploadedFile)
-        //{
-        //    DataMatchUploadResponse _dataMatchUploadResponse = new DataMatchUploadResponse();
-        //    if (!ModelState.IsValid)
-        //    {
-        //        foreach (var field in ModelState.Keys)
-        //        {
-        //            if (ModelState[field].Errors != null)
-        //            {
 
-        //            }
-        //        }
-        //        return new DataMatchUploadResponse()
-        //        {
-        //            result = "Invalid Request",
-        //            status = "Failure",
-        //            statusCode = 500
-        //        };
-        //        //return Request.CreateErrorResponse(HttpStatusCode.BadRequest, ModelState);
-        //    }
-        //    System.Net.Http.Headers.HttpRequestHeaders headers = this.Request.Headers;
-        //    string businessId = string.Empty;
-        //    string fileId = string.Empty;
-        //    if (headers.Contains("businessId"))
-        //    {
-        //        businessId = headers.GetValues("businessId").FirstOrDefault();
-        //    }
-        //    if (headers.Contains("businessId"))
-        //    {
-        //        fileId = headers.GetValues("fileId").FirstOrDefault();
-        //    }
-        //    return new DataMatchUploadResponse();
-        //    //return GenerateResponse(await _dataMatchUploadResponse.UploadDataMatchFile(UploadedFile, businessId, fileId));
-        //}
+        [HttpPost]
+        [Route("2")]
+        [ResponseType(typeof(DataMatchUploadResponseBody))]
+        public async Task<DataMatchUploadResponseBody> PostMatchedDataFiles2([FromBody] DataMatchUploadRequestBody UploadedFile)
+        {
+            DataMatchUploadResponseBody _dMUResponse = new DataMatchUploadResponseBody() { responseheader = new ResponseHeader() };
+            if (!ModelState.IsValid)
+            {
+                _dMUResponse.responseheader.orderid = (UploadedFile.requestheader.orderid == null) ? string.Empty : UploadedFile.requestheader.orderid;
+                ResponseDetail _responseDetail = new ResponseDetail();
+                _responseDetail.id = "1";
+                _responseDetail.requestData = UploadedFile.requestdetail;
+                _responseDetail.errorData = new List<ErrorData>();
+
+                foreach (var field in ModelState.Keys)
+                {
+                    if (ModelState[field].Errors != null)
+                    {
+                        foreach (var _error in ModelState[field].Errors)
+                        {
+                            ErrorData _errorData = new ErrorData()
+                            {
+                                errorCause = "Invalid Request",
+                                errorField = field,
+                                errorExplanation = _error.ErrorMessage,
+                                errorValidationType = ""
+                            };
+                            _responseDetail.errorData.Add(_errorData);
+                        }
+                    }
+                }
+                _dMUResponse.responsedetail = new List<ResponseDetail>();
+                _dMUResponse.responsedetail.Add(_responseDetail);
+                return _dMUResponse;
+            }
+            System.Net.Http.Headers.HttpRequestHeaders headers = this.Request.Headers;
+            string businessId = string.Empty;
+            string fileId = string.Empty;
+            if (headers.Contains("businessId"))
+            {
+                businessId = headers.GetValues("businessId").FirstOrDefault();
+            }
+            if (headers.Contains("businessId"))
+            {
+                fileId = headers.GetValues("fileId").FirstOrDefault();
+            }
+            return _dMUResponse;
+            //return GenerateResponse(await _dataMatchUploadResponse.UploadDataMatchFile(UploadedFile, businessId, fileId));
+        }
+
+        [HttpPost]
+        [Route("3")]
+        [ResponseType(typeof(DataMatchUploadResponse))]
+        public async Task<DataMatchUploadResponse> PostMatchedDataFiles3([FromBody] DataMatchUploadRequestBody UploadedFile)
+        {
+            DataMatchUploadResponse _dataMatchUploadResponse = new DataMatchUploadResponse();
+            if (!ModelState.IsValid)
+            {
+                foreach (var field in ModelState.Keys)
+                {
+                    if (ModelState[field].Errors != null)
+                    {
+
+                    }
+                }
+                return new DataMatchUploadResponse()
+                {
+                    result = "Invalid Request",
+                    status = "Failure",
+                    statusCode = 500
+                };
+                //return Request.CreateErrorResponse(HttpStatusCode.BadRequest, ModelState);
+            }
+            System.Net.Http.Headers.HttpRequestHeaders headers = this.Request.Headers;
+            string businessId = string.Empty;
+            string fileId = string.Empty;
+            if (headers.Contains("businessId"))
+            {
+                businessId = headers.GetValues("businessId").FirstOrDefault();
+            }
+            if (headers.Contains("businessId"))
+            {
+                fileId = headers.GetValues("fileId").FirstOrDefault();
+            }
+            return new DataMatchUploadResponse();
+            //return GenerateResponse(await _dataMatchUploadResponse.UploadDataMatchFile(UploadedFile, businessId, fileId));
+        }
 
         private DataMatchUploadResponse GenerateResponse(DataMatchUploadResponse response, ModelStateDictionary modelState = null)
         {
