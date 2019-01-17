@@ -1,4 +1,4 @@
-﻿using Mc.TD.Upload.Base.Interfaces.DataMatch;
+using Mc.TD.Upload.Base.Interfaces.DataMatch;
 using Mc.TD.Upload.Domain.DataMatch;
 using System.Linq;
 using System.Net;
@@ -19,7 +19,15 @@ using System.Data.SqlClient;
 namespace Mc.TD.Upload.Api.Controllers
 {
     public class DataMatchUploadController : ApiController
-    {        
+    {
+        public string connectionString
+        {
+            get
+            {
+                return "Data Source=(LocalDB)\\MSSQLLocalDB;AttachDbFilename="+ AppDomain.CurrentDomain.BaseDirectory + "App_Data\\MCAPIDB.mdf" + ";Integrated Security=True";
+            }
+            set { }
+        }
         [HttpPost]
         [Route("PostMatchedDataFiles")]
         [ResponseType(typeof(DataMatchUploadResponse))]
@@ -27,7 +35,7 @@ namespace Mc.TD.Upload.Api.Controllers
         {
             DataMatchUploadResponse _dataMatchUploadResponse = new DataMatchUploadResponse();
             _dataMatchUploadResponse.ResponseHeader = dataMatchUploadRequest.RequestHeader;
-            _dataMatchUploadResponse.ResponseDetails = dataMatchUploadRequest.RequestDetails;
+            _dataMatchUploadResponse.ResponseDetails = dataMatchUploadRequest.RequestDetail;
             _dataMatchUploadResponse = Validate(_dataMatchUploadResponse);
             if (_dataMatchUploadResponse.ResponseHeader.errorData.Count > 0 || _dataMatchUploadResponse.ResponseHeader.matchStatistics.errorRecords > 0)
             {
@@ -134,6 +142,10 @@ namespace Mc.TD.Upload.Api.Controllers
             List<ErrorData> _errors = new List<ErrorData>();
             int _totalRecords = dataMatchUploadResponse.ResponseDetails.Count;
             int _errorRecords = 0;
+            if (dataMatchUploadResponse.ResponseHeader.errorData == null)
+            {
+                dataMatchUploadResponse.ResponseHeader.errorData = new List<ErrorData>();
+            }
             dataMatchUploadResponse.ResponseHeader.errorData.Clear();
             if (dataMatchUploadResponse.ResponseHeader.orderid == null)
             {
@@ -194,7 +206,7 @@ namespace Mc.TD.Upload.Api.Controllers
                     errorField = "orderId",
                     errorCause = "INVALID_REQUEST",
                     errorExplanation = "value provided in orderId field is duplicate",
-                    errorValidationType = "MISSING"
+                    errorValidationType = "INVALID"
                 });
             }
             if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" && 
@@ -284,12 +296,18 @@ namespace Mc.TD.Upload.Api.Controllers
                 foreach (ErrorData _error in _errors)
                 {
                     dataMatchUploadResponse.ResponseHeader.errorData.Add(_error);
-                }                
+                }
+                dataMatchUploadResponse.ResponseDetails = null;
+                return dataMatchUploadResponse;
             }
 
             for (int i=0; i< _totalRecords; i++)
             {
                 _errors = new List<ErrorData>();
+                if (dataMatchUploadResponse.ResponseDetails[i].errorData == null)
+                {
+                    dataMatchUploadResponse.ResponseDetails[i].errorData = new List<ErrorData>();
+                }
                 dataMatchUploadResponse.ResponseDetails[i].errorData.Clear();
                 if (dataMatchUploadResponse.ResponseDetails[i].id == null)
                 {
@@ -460,6 +478,11 @@ namespace Mc.TD.Upload.Api.Controllers
                         _errorRecords++;
                     }
             }
+            if (dataMatchUploadResponse.ResponseHeader.matchStatistics == null)
+            {
+                dataMatchUploadResponse.ResponseHeader.matchStatistics = new matchStatistics();
+            }
+            dataMatchUploadResponse.ResponseHeader.matchStatistics.totalRecords = _totalRecords;
             dataMatchUploadResponse.ResponseHeader.matchStatistics.errorRecords = _errorRecords;
             return dataMatchUploadResponse;
         }
@@ -467,7 +490,7 @@ namespace Mc.TD.Upload.Api.Controllers
         public DataTable GetFromSQL(string query)
         {
             DataTable _dataTable = new DataTable();
-            SqlConnection _sqlConnection = new SqlConnection("Data Source=(LocalDB)\\MSSQLLocalDB;AttachDbFilename=C:\\DOMINIC\\GITHUB\\Source\\Repos\\DominicLutherEarl\\MCWebApplication\\MCAPI\\App_Data\\MCAPIDB.mdf;Integrated Security=True");
+            SqlConnection _sqlConnection = new SqlConnection(connectionString);
             try
             {
                 SqlCommand _sqlCommand = new SqlCommand(query, _sqlConnection);
@@ -493,11 +516,11 @@ namespace Mc.TD.Upload.Api.Controllers
 
         public bool InsertIntoSQL(DataMatchUploadRequest dataMatchUploadRequest)
         {
-            SqlConnection _sqlConnection = new SqlConnection("Data Source=(LocalDB)\\MSSQLLocalDB;AttachDbFilename=C:\\DOMINIC\\GITHUB\\Source\\Repos\\DominicLutherEarl\\MCWebApplication\\MCAPI\\App_Data\\MCAPIDB.mdf;Integrated Security=True");
+            SqlConnection _sqlConnection = new SqlConnection(connectionString);
             SqlCommand _sqlCommand;
             try
             {
-                foreach (Detail _detail in dataMatchUploadRequest.RequestDetails)
+                foreach (Detail _detail in dataMatchUploadRequest.RequestDetail)
                 {
                     string _insertQuery = "INSERT INTO [dbo].[BLOB] ([orderid], [ordertype], [businessid], [matchtype], [noofrecords], [email], " +
                         "[id], [requesttype], [trackid], [companyname], [address1], [address2], [address3], [address4], [city], [state], [country], [zip], " +
