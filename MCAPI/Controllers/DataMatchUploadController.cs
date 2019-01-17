@@ -19,192 +19,19 @@ using System.Data.SqlClient;
 namespace Mc.TD.Upload.Api.Controllers
 {
     public class DataMatchUploadController : ApiController
-    {
-        public IDataMatchUploadService _dataMatchUploadResponse;
-        public IDataMatchUploadService _dMUResponse;
-
-        public DataMatchUploadController()
-        {
-        
-        }
-
-        public async void UploadToBLOB()
-        {
-            CloudStorageAccount _cloudStorageAccount = null;
-            CloudBlobContainer _cloudBlobContainer = null;
-            BlobContinuationToken _blobContinuationToken = null;
-            CloudBlobClient _cloudBlobClient;
-            //BlobContainerPermissions _permissions;
-            //CloudBlockBlob _cloudBlockBlob;
-
-            string sourceFile = null;
-            string destinationFile = null;
-            string storageConnectionString = Environment.GetEnvironmentVariable("storageconnectionstring");
-            string localPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            string localFileName = "QuickStart_" + Guid.NewGuid().ToString() + ".txt";
-            sourceFile = Path.Combine(localPath, localFileName);
-
-            File.WriteAllText(sourceFile, "Hello, World!");
-            if (CloudStorageAccount.TryParse(storageConnectionString, out _cloudStorageAccount))
-            {
-                try
-                {
-                    _cloudBlobClient = _cloudStorageAccount.CreateCloudBlobClient();
-                    _cloudBlobContainer = _cloudBlobClient.GetContainerReference("quickstartblobs" + Guid.NewGuid().ToString());
-                    await _cloudBlobContainer.CreateAsync();
-                    await _cloudBlobContainer.SetPermissionsAsync(new BlobContainerPermissions { PublicAccess = BlobContainerPublicAccessType.Blob });
-                    await _cloudBlobContainer.GetBlockBlobReference(localFileName).UploadFromFileAsync(sourceFile);
-                    do
-                    {
-                        var results = await _cloudBlobContainer.ListBlobsSegmentedAsync(null, _blobContinuationToken);
-                        _blobContinuationToken = results.ContinuationToken;
-                        foreach (IListBlobItem item in results.Results)
-                        {
-                            Console.WriteLine(item.Uri);
-                        }
-                    } while (_blobContinuationToken != null);
-                    destinationFile = sourceFile.Replace(".txt", "_DOWNLOADED.txt");
-                    await _cloudBlobContainer.GetBlockBlobReference(localFileName).DownloadToFileAsync(destinationFile, FileMode.Create);
-                }
-                catch (StorageException ex)
-                {
-                }
-                finally
-                {
-                    if (_cloudBlobContainer != null)
-                    {
-                        await _cloudBlobContainer.DeleteIfExistsAsync();
-                    }
-                    File.Delete(sourceFile);
-                    File.Delete(destinationFile);
-                }
-            }
-        }
-
-        public DataMatchUploadController(IDataMatchUploadService dataMatchUploadResponse, DMUResponse dMUResponse)
-        {
-            _dataMatchUploadResponse = dataMatchUploadResponse;
-            //_dMUResponse = dMUResponse;
-        }
-
+    {        
         [HttpPost]
-        [Route("1")]
-        [ResponseType(typeof(DMUResponse))]
-        public async Task<DMUResponse> PostMatchedDataFiles([FromBody] DataMatchUploadRequestBody UploadedFile)
-        {
-            Validate(UploadedFile);
-            DMUResponse _dMUResponse = new DMUResponse();
-            if (!ModelState.IsValid)
-            {
-                _dMUResponse.orderId = (UploadedFile.requestheader.orderid == null) ? string.Empty : UploadedFile.requestheader.orderid;
-                _dMUResponse.errorData = new List<ErrorData>();
-                foreach (var field in ModelState.Keys)
-                {
-                    if (ModelState[field].Errors != null)
-                    {
-                        foreach (var _error in ModelState[field].Errors)
-                        {
-                            ErrorData _errorData = new ErrorData()
-                            {
-                                errorCause = "Invalid Request",
-                                errorField = field,
-                                errorExplanation = _error.ErrorMessage,
-                                errorValidationType = ""
-                            };
-                            _dMUResponse.errorData.Add(_errorData);
-                        }
-                    }
-                }
-                return _dMUResponse;
-            }
-            System.Net.Http.Headers.HttpRequestHeaders headers = this.Request.Headers;
-            string businessId = string.Empty;
-            string fileId = string.Empty;
-            if (headers.Contains("businessId"))
-            {
-                businessId = headers.GetValues("businessId").FirstOrDefault();
-            }
-            if (headers.Contains("businessId"))
-            {
-                fileId = headers.GetValues("fileId").FirstOrDefault();
-            }
-            return new DMUResponse();
-            //return GenerateResponse(await _dataMatchUploadResponse.UploadDataMatchFile(UploadedFile, businessId, fileId));
-        }
-
-
-        [HttpPost]
-        [Route("2")]
-        [ResponseType(typeof(DataMatchUploadResponseBody))]
-        public async Task<DataMatchUploadResponseBody> PostMatchedDataFiles2([FromBody] DataMatchUploadRequestBody UploadedFile)
-        {
-            DataMatchUploadResponseBody _dMUResponse = new DataMatchUploadResponseBody() { responseheader = new ResponseHeader() };
-            if (!ModelState.IsValid)
-            {
-                _dMUResponse.responseheader.orderid = (UploadedFile.requestheader.orderid == null) ? string.Empty : UploadedFile.requestheader.orderid;
-                ResponseDetail _responseDetail = new ResponseDetail();
-                _responseDetail.id = "1";
-                _responseDetail.requestData = UploadedFile.requestdetail;
-                _responseDetail.errorData = new List<ErrorData>();
-
-                foreach (var field in ModelState.Keys)
-                {
-                    if (ModelState[field].Errors != null)
-                    {
-                        foreach (var _error in ModelState[field].Errors)
-                        {
-                            ErrorData _errorData = new ErrorData()
-                            {
-                                errorCause = "Invalid Request",
-                                errorField = field,
-                                errorExplanation = _error.ErrorMessage,
-                                errorValidationType = ""
-                            };
-                            _responseDetail.errorData.Add(_errorData);
-                        }
-                    }
-                }
-                _dMUResponse.responsedetail = new List<ResponseDetail>();
-                _dMUResponse.responsedetail.Add(_responseDetail);
-                return _dMUResponse;
-            }
-            System.Net.Http.Headers.HttpRequestHeaders headers = this.Request.Headers;
-            string businessId = string.Empty;
-            string fileId = string.Empty;
-            if (headers.Contains("businessId"))
-            {
-                businessId = headers.GetValues("businessId").FirstOrDefault();
-            }
-            if (headers.Contains("businessId"))
-            {
-                fileId = headers.GetValues("fileId").FirstOrDefault();
-            }
-            return _dMUResponse;
-            //return GenerateResponse(await _dataMatchUploadResponse.UploadDataMatchFile(UploadedFile, businessId, fileId));
-        }
-
-        [HttpPost]
-        [Route("3")]
+        [Route("PostMatchedDataFiles")]
         [ResponseType(typeof(DataMatchUploadResponse))]
-        public async Task<DataMatchUploadResponse> PostMatchedDataFiles3([FromBody] DataMatchUploadRequestBody UploadedFile)
+        public async Task<DataMatchUploadResponse> PostMatchedDataFiles([FromBody] DataMatchUploadRequest dataMatchUploadRequest)
         {
             DataMatchUploadResponse _dataMatchUploadResponse = new DataMatchUploadResponse();
-            if (!ModelState.IsValid)
+            _dataMatchUploadResponse.ResponseHeader = dataMatchUploadRequest.RequestHeader;
+            _dataMatchUploadResponse.ResponseDetails = dataMatchUploadRequest.RequestDetails;
+            _dataMatchUploadResponse = Validate(_dataMatchUploadResponse);
+            if (_dataMatchUploadResponse.ResponseHeader.errorData.Count > 0 || _dataMatchUploadResponse.ResponseHeader.matchStatistics.errorRecords > 0)
             {
-                foreach (var field in ModelState.Keys)
-                {
-                    if (ModelState[field].Errors != null)
-                    {
-
-                    }
-                }
-                return new DataMatchUploadResponse()
-                {
-                    result = "Invalid Request",
-                    status = "Failure",
-                    statusCode = 500
-                };
-                //return Request.CreateErrorResponse(HttpStatusCode.BadRequest, ModelState);
+                return _dataMatchUploadResponse;
             }
             System.Net.Http.Headers.HttpRequestHeaders headers = this.Request.Headers;
             string businessId = string.Empty;
@@ -217,46 +44,99 @@ namespace Mc.TD.Upload.Api.Controllers
             {
                 fileId = headers.GetValues("fileId").FirstOrDefault();
             }
-            return new DataMatchUploadResponse();
+            InsertIntoSQL(dataMatchUploadRequest);
+            return _dataMatchUploadResponse;
             //return GenerateResponse(await _dataMatchUploadResponse.UploadDataMatchFile(UploadedFile, businessId, fileId));
         }
+        
+        //[HttpPost]
+        //[Route("2")]
+        //[ResponseType(typeof(DataMatchUploadResponseBody))]
+        //public async Task<DataMatchUploadResponseBody> PostMatchedDataFiles2([FromBody] DataMatchUploadRequestBody UploadedFile)
+        //{
+        //    DataMatchUploadResponseBody _dMUResponse = new DataMatchUploadResponseBody() { responseheader = new ResponseHeader() };
+        //    if (!ModelState.IsValid)
+        //    {
+        //        _dMUResponse.responseheader.orderid = (UploadedFile.requestheader.orderid == null) ? string.Empty : UploadedFile.requestheader.orderid;
+        //        ResponseDetail _responseDetail = new ResponseDetail();
+        //        _responseDetail.id = "1";
+        //        _responseDetail.requestData = UploadedFile.requestdetail;
+        //        _responseDetail.errorData = new List<ErrorData>();
 
-        private DataMatchUploadResponse GenerateResponse(DataMatchUploadResponse response, ModelStateDictionary modelState = null)
-        {
-            //DataMatchUploadResponse _dataMatchUploadResponse;
-            //if (response.statusCode == 400)
-            //    _dataMatchUploadResponse = new DataMatchUploadResponse() {result = "", statusCode = response.statusCode }//Request.CreateResponse(HttpStatusCode.BadRequest, response);
+        //        foreach (var field in ModelState.Keys)
+        //        {
+        //            if (ModelState[field].Errors != null)
+        //            {
+        //                foreach (var _error in ModelState[field].Errors)
+        //                {
+        //                    ErrorData _errorData = new ErrorData()
+        //                    {
+        //                        errorCause = "Invalid Request",
+        //                        errorField = field,
+        //                        errorExplanation = _error.ErrorMessage,
+        //                        errorValidationType = ""
+        //                    };
+        //                    _responseDetail.errorData.Add(_errorData);
+        //                }
+        //            }
+        //        }
+        //        _dMUResponse.responsedetail = new List<ResponseDetail>();
+        //        _dMUResponse.responsedetail.Add(_responseDetail);
+        //        return _dMUResponse;
+        //    }
+        //    System.Net.Http.Headers.HttpRequestHeaders headers = this.Request.Headers;
+        //    string businessId = string.Empty;
+        //    string fileId = string.Empty;
+        //    if (headers.Contains("businessId"))
+        //    {
+        //        businessId = headers.GetValues("businessId").FirstOrDefault();
+        //    }
+        //    if (headers.Contains("businessId"))
+        //    {
+        //        fileId = headers.GetValues("fileId").FirstOrDefault();
+        //    }
+        //    return _dMUResponse;
+        //    //return GenerateResponse(await _dataMatchUploadResponse.UploadDataMatchFile(UploadedFile, businessId, fileId));
+        //}
+        
+        //private DataMatchUploadResponse GenerateResponse(DataMatchUploadResponse response, ModelStateDictionary modelState = null)
+        //{
+        //    //DataMatchUploadResponse _dataMatchUploadResponse;
+        //    //if (response.statusCode == 400)
+        //    //    _dataMatchUploadResponse = new DataMatchUploadResponse() {result = "", statusCode = response.statusCode }//Request.CreateResponse(HttpStatusCode.BadRequest, response);
 
-            //if (response.statusCode == 409)
-            //    result = Request.CreateResponse(HttpStatusCode.Conflict, response);
+        //    //if (response.statusCode == 409)
+        //    //    result = Request.CreateResponse(HttpStatusCode.Conflict, response);
 
-            //if (response.statusCode == 202)
-            //    result = Request.CreateResponse(HttpStatusCode.Accepted, response);
+        //    //if (response.statusCode == 202)
+        //    //    result = Request.CreateResponse(HttpStatusCode.Accepted, response);
 
-            //if (response.statusCode == 500)
-            //    if (modelState != null)
-            //    {
-            //        //if (!modelState.IsValid)
-            //        //{
-            //        //    return new DataMatchUploadResponse();
-            //        //}
-            //        result = Request.CreateResponse(HttpStatusCode.InternalServerError, response);
-            //    }
-            //    else
-            //    {
-            //        result = Request.CreateResponse(HttpStatusCode.InternalServerError, response);
-            //    }
+        //    //if (response.statusCode == 500)
+        //    //    if (modelState != null)
+        //    //    {
+        //    //        //if (!modelState.IsValid)
+        //    //        //{
+        //    //        //    return new DataMatchUploadResponse();
+        //    //        //}
+        //    //        result = Request.CreateResponse(HttpStatusCode.InternalServerError, response);
+        //    //    }
+        //    //    else
+        //    //    {
+        //    //        result = Request.CreateResponse(HttpStatusCode.InternalServerError, response);
+        //    //    }
 
-            //return result;
+        //    //return result;
 
-            return new DataMatchUploadResponse();
-        }
+        //    return new DataMatchUploadResponse();
+        //}
 
-        public List<ErrorData> Validate(DataMatchUploadRequestBody dataMatchUploadRequestBody)
+        public DataMatchUploadResponse Validate(DataMatchUploadResponse dataMatchUploadResponse)
         {
             List<ErrorData> _errors = new List<ErrorData>();
+            int _totalRecords = 0;
+            int _errorRecords = 0;
             
-            if (dataMatchUploadRequestBody.requestheader.orderid == null)
+            if (dataMatchUploadResponse.ResponseHeader.orderid == null)
             {
                 _errors.Add(new ErrorData()
                 {
@@ -265,10 +145,11 @@ namespace Mc.TD.Upload.Api.Controllers
                     errorExplanation = "orderId field is not present",
                     errorValidationType = "MISSING"
                 });
+                dataMatchUploadResponse.ResponseHeader.orderid = "null";
             }
             else
             {
-                if (dataMatchUploadRequestBody.requestheader.orderid == string.Empty)
+                if (dataMatchUploadResponse.ResponseHeader.orderid == string.Empty)
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -277,10 +158,11 @@ namespace Mc.TD.Upload.Api.Controllers
                         errorExplanation = "value provided in orderId field is not valid",
                         errorValidationType = "INVALID"
                     });
+                    dataMatchUploadResponse.ResponseHeader.orderid = "null";
                 }
             }
 
-            if (dataMatchUploadRequestBody.requestheader.ordertype == null)
+            if (dataMatchUploadResponse.ResponseHeader.ordertype == null)
             {
                 _errors.Add(new ErrorData()
                 {
@@ -289,11 +171,12 @@ namespace Mc.TD.Upload.Api.Controllers
                     errorExplanation = "orderType field is not present",
                     errorValidationType = "MISSING"
                 });
+                dataMatchUploadResponse.ResponseHeader.ordertype = "null";
             }
             else
             {
-                if (!((dataMatchUploadRequestBody.requestheader.ordertype.ToLower() == "new") || 
-                    (dataMatchUploadRequestBody.requestheader.ordertype.ToLower() == "existing")))
+                if (!((dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "new") || 
+                    (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing")))
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -304,8 +187,8 @@ namespace Mc.TD.Upload.Api.Controllers
                     });
                 }
             }
-            if (dataMatchUploadRequestBody.requestheader.ordertype.ToLower() == "new" && 
-                (GetFromSQL("select ordertype from BLOB where orderid = " + dataMatchUploadRequestBody.requestheader.orderid).Rows.Count > 0))
+            if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "new" && 
+                (GetFromSQL("select ordertype from BLOB where orderid = " + dataMatchUploadResponse.ResponseHeader.orderid).Rows.Count > 0))
             {
                 _errors.Add(new ErrorData()
                 {
@@ -315,8 +198,8 @@ namespace Mc.TD.Upload.Api.Controllers
                     errorValidationType = "MISSING"
                 });
             }
-            if (dataMatchUploadRequestBody.requestheader.ordertype.ToLower() == "existing" && 
-                (GetFromSQL("select ordertype from BLOB where orderid = " + dataMatchUploadRequestBody.requestheader.orderid).Rows.Count == 0))
+            if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" && 
+                (GetFromSQL("select ordertype from BLOB where orderid = " + dataMatchUploadResponse.ResponseHeader.orderid).Rows.Count == 0))
             {
                 _errors.Add(new ErrorData()
                 {
@@ -327,7 +210,7 @@ namespace Mc.TD.Upload.Api.Controllers
                 });
             }
             
-            if (dataMatchUploadRequestBody.requestheader.businessid == null)
+            if (dataMatchUploadResponse.ResponseHeader.businessid == null)
             {
                 _errors.Add(new ErrorData()
                 {
@@ -339,7 +222,7 @@ namespace Mc.TD.Upload.Api.Controllers
             }
             else
             {
-                if (dataMatchUploadRequestBody.requestheader.businessid == string.Empty)
+                if (dataMatchUploadResponse.ResponseHeader.businessid == string.Empty)
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -351,7 +234,7 @@ namespace Mc.TD.Upload.Api.Controllers
                 }
             }
 
-            if (dataMatchUploadRequestBody.requestheader.matchtype == string.Empty)
+            if (dataMatchUploadResponse.ResponseHeader.matchtype == string.Empty)
             {
                 _errors.Add(new ErrorData()
                 {
@@ -362,7 +245,7 @@ namespace Mc.TD.Upload.Api.Controllers
                 });
             }
             
-            if (dataMatchUploadRequestBody.requestheader.noofrecords == null)
+            if (dataMatchUploadResponse.ResponseHeader.noofrecords == null)
             {
                 _errors.Add(new ErrorData()
                 {
@@ -374,7 +257,7 @@ namespace Mc.TD.Upload.Api.Controllers
             }
             else
             {
-                if (dataMatchUploadRequestBody.requestheader.noofrecords == string.Empty)
+                if (dataMatchUploadResponse.ResponseHeader.noofrecords == string.Empty)
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -386,7 +269,7 @@ namespace Mc.TD.Upload.Api.Controllers
                 }
             }
 
-            if (dataMatchUploadRequestBody.requestheader.email == string.Empty)
+            if (dataMatchUploadResponse.ResponseHeader.email == string.Empty)
             {
                 _errors.Add(new ErrorData()
                 {
@@ -397,22 +280,28 @@ namespace Mc.TD.Upload.Api.Controllers
                 });
             }
 
-            if (_errors.Count > 0){ return _errors; }
-
-            foreach (Requestdetail _requestDetail in dataMatchUploadRequestBody.requestdetail)
+            if (_errors.Count > 0)
             {
-                if (_requestDetail.id == null)
+                dataMatchUploadResponse.ResponseHeader.errorData.Concat(_errors);
+                _totalRecords = dataMatchUploadResponse.ResponseDetails.Count;
+            }
+
+            for (int i=0; i< _totalRecords; i++)
+            {
+                _errors = new List<ErrorData>();
+                if (dataMatchUploadResponse.ResponseDetails[i].id == null)
                 {
                     _errors.Add(new ErrorData()
                     {
                         errorField = "id",
                         errorCause = "INVALID_REQUEST",
+
                         errorExplanation = "id is not present",
                         errorValidationType = "MISSING"
                     });
                 }
 
-                if (_requestDetail.requesttype == null)
+                if (dataMatchUploadResponse.ResponseDetails[i].requesttype == null)
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -423,7 +312,7 @@ namespace Mc.TD.Upload.Api.Controllers
                     });
                 }
 
-                if (_requestDetail.requesttype == string.Empty)
+                if (dataMatchUploadResponse.ResponseDetails[i].requesttype == string.Empty)
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -434,8 +323,8 @@ namespace Mc.TD.Upload.Api.Controllers
                     });
                 }
 
-                if ((dataMatchUploadRequestBody.requestheader.ordertype.ToLower() == "new") && 
-                    ((_requestDetail.requesttype.ToLower() == "link") || (_requestDetail.requesttype.ToLower() == "update")))
+                if ((dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "new") &&
+                    ((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link") || (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update")))
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -446,9 +335,9 @@ namespace Mc.TD.Upload.Api.Controllers
                     });
                 }
 
-                if ((dataMatchUploadRequestBody.requestheader.ordertype.ToLower() == "existing") &&
-                    (_requestDetail.requesttype.ToLower() == "update") &&
-                    (!GetFromSQL("select trackid from BLOB where id = " + _requestDetail.id).Rows.Contains(_requestDetail.trackid)))
+                if ((dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing") &&
+                    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") &&
+                    (!GetFromSQL("select trackid from BLOB where id = " + dataMatchUploadResponse.ResponseDetails[i].id).Rows.Contains(dataMatchUploadResponse.ResponseDetails[i].trackid)))
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -459,20 +348,113 @@ namespace Mc.TD.Upload.Api.Controllers
                     });
                 }
 
-                if (((_requestDetail.requesttype.ToLower() == "update") || (_requestDetail.requesttype.ToLower() == "link")) &&
-                    (_requestDetail.trackid == null))
+                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
+                    (dataMatchUploadResponse.ResponseDetails[i].trackid == null))
                 {
                     _errors.Add(new ErrorData()
                     {
                         errorField = "trackid",
                         errorCause = "INVALID_REQUEST",
                         errorExplanation = "value provided in the trackId field for requesting updates is not for a purchased record",
+                        errorValidationType = "MISSING"
+                    });
+                }
+
+                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
+                    (dataMatchUploadResponse.ResponseDetails[i].trackid == string.Empty))
+                {
+                    _errors.Add(new ErrorData()
+                    {
+                        errorField = "trackid",
+                        errorCause = "INVALID_REQUEST",
+                        errorExplanation = "value provided in the trackId field is not valid",
                         errorValidationType = "INVALID"
                     });
                 }
-            }
 
-            return _errors;
+                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
+                    (dataMatchUploadResponse.ResponseDetails[i].trackid == string.Empty))
+                {
+                    _errors.Add(new ErrorData()
+                    {
+                        errorField = "trackid",
+                        errorCause = "INVALID_REQUEST",
+                        errorExplanation = "value provided in the trackId field is not valid",
+                        errorValidationType = "INVALID"
+                    });
+                }
+
+                if (dataMatchUploadResponse.ResponseDetails[i].companyname == null)
+                {
+                    _errors.Add(new ErrorData()
+                    {
+                        errorField = "companyName",
+                        errorCause = "INVALID_REQUEST",
+                        errorExplanation = "companyName is not present",
+                        errorValidationType = "MISSING"
+                    });
+                }
+                if (dataMatchUploadResponse.ResponseDetails[i].monitoringType == string.Empty)
+                {
+                    _errors.Add(new ErrorData()
+                    {
+                        errorField = "monitoringType",
+                        errorCause = "INVALID_REQUEST",
+                        errorExplanation = "value provided in monitoring field is not valid",
+                        errorValidationType = "INVALID"
+                    });
+                }
+
+                if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
+                    dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
+                    dataMatchUploadResponse.ResponseDetails[i].trackid != null && dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId != null)
+                {
+                    _errors.Add(new ErrorData()
+                    {
+                        errorField = "link",
+                        errorCause = "INVALID_REQUEST",
+                        errorExplanation = "trackId and referenceId should not be provided in the same request for linking",
+                        errorValidationType = "INVALID"
+                    });
+                }
+
+                if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
+                    dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
+                    !(GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and trackid = '" + dataMatchUploadResponse.ResponseDetails[i].trackid + "'").Rows.Count > 0))
+                {
+                    _errors.Add(new ErrorData()
+                    {
+                        errorField = "trackid",
+                        errorCause = "INVALID_REQUEST",
+                        errorExplanation = "value provided in trackId field to link a request record to a trade directory record is not valid",
+                        errorValidationType = "INVALID"
+                    });
+                }
+
+                if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
+                    dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
+                    dataMatchUploadResponse.ResponseDetails[i].trackid == null && dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId == null)
+                {
+                    _errors.Add(new ErrorData()
+                    {
+                        errorField = "requestType",
+                        errorCause = "INVALID_REQUEST",
+                        errorExplanation = "trackId or referenceId not present in the request for linking",
+                        errorValidationType = "INVALID"
+                    });
+                }
+
+                if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
+                    dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
+                    !(GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and referenceid = '" + dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId + "'").Rows.Count > 0))
+                    if (_errors.Count >0)
+                    {
+                        dataMatchUploadResponse.ResponseDetails[i].errorData.Concat(_errors);
+                        _errorRecords++;
+                    }
+            }
+            dataMatchUploadResponse.ResponseHeader.matchStatistics.errorRecords = _errorRecords;
+            return dataMatchUploadResponse;
         }
 
         public DataTable GetFromSQL(string query)
@@ -486,6 +468,59 @@ namespace Mc.TD.Upload.Api.Controllers
             _sqlConnection.Close();
             _sqlDataAdapter.Dispose();
             return _dataTable;
+        }
+
+        public bool InsertIntoSQL(DataMatchUploadRequest dataMatchUploadRequest)
+        {
+            try
+            {
+                foreach (Detail _detail in dataMatchUploadRequest.RequestDetails)
+                {
+                    string _insertQuery = "INSERT INTO [dbo].[BLOB] ([orderid], [ordertype], [businessid], [matchtype], [noofrecords], [email], " +
+                        "[id], [requesttype], [trackid], [companyname], [address1], [address2], [address3], [address4], [city], [state], [country], [zip], " +
+                        "[phone], [url], [contact], [ein], [tin], [vat], [registrationnumber], [monitoringType], [updatetype], [linktrackid], [referenceid], [CustomFields]) " +
+                        "VALUES ( " +
+                        " N'" + (dataMatchUploadRequest.RequestHeader.orderid)
+                    + "', N'" + (dataMatchUploadRequest.RequestHeader.ordertype)
+                    + "', N'" + (dataMatchUploadRequest.RequestHeader.businessid)
+                    + "', N'" + (dataMatchUploadRequest.RequestHeader.matchtype)
+                    + "', N'" + (dataMatchUploadRequest.RequestHeader.noofrecords)
+                    + "', N'" + (dataMatchUploadRequest.RequestHeader.email)
+                    + "', N'" + (_detail.id)
+                    + "', N'" + (_detail.requesttype)
+                    + "', N'" + (_detail.trackid)
+                    + "', N'" + (_detail.companyname)
+                    + "', N'" + (_detail.address.address1)
+                    + "', N'" + (_detail.address.address2)
+                    + "', N'" + (_detail.address.address3)
+                    + "', N'" + (_detail.address.address4)
+                    + "', N'" + (_detail.address.city)
+                    + "', N'" + (_detail.address.state)
+                    + "', N'" + (_detail.address.country)
+                    + "', N'" + (_detail.address.zip)
+                    + "', N'" + (_detail.phone)
+                    + "', N'" + (_detail.url)
+                    + "', N'" + (_detail.contact)
+                    + "', N'" + (_detail.ein)
+                    + "', N'" + (_detail.tin)
+                    + "', N'" + (_detail.vat)
+                    + "', N'" + (_detail.registrationnumber)
+                    + "', N'" + (_detail.monitoringType)
+                    + "', N'" + (_detail.updatetype)
+                    + "', N'" + (_detail.linking.linktrackid)
+                    + "', N'" + (_detail.linking.linkcompliance[0].referenceId)
+                    + "', N'" + (_detail.customfields);
+
+                    SqlConnection _sqlConnection = new SqlConnection("Data Source=(LocalDB)\\MSSQLLocalDB;AttachDbFilename=C:\\DOMINIC\\GITHUB\\Source\\Repos\\DominicLutherEarl\\MCWebApplication\\MCAPI\\App_Data\\MCAPIDB.mdf;Integrated Security=True");
+                    SqlCommand _sqlCommand = new SqlCommand(_insertQuery, _sqlConnection);
+                    _sqlCommand.ExecuteNonQuery();                    
+                }
+                return true;
+            }
+            catch (Exception _exception)
+            {
+                return false;
+            }
         }
     }
 }

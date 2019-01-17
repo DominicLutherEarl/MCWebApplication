@@ -2,6 +2,6 @@
 {
     public class Linkcompliance
     {
-        public string complianceid { get; set; }
+        public string referenceId { get; set; }
     }
 }

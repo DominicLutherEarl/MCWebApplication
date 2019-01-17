@@ -9,10 +9,8 @@ namespace Mc.TD.Upload.Domain.DataMatch
 {
     public class DataMatchUploadRequestBody
     {
-        [Required(ErrorMessage ="Request header is null")]
         public Requestheader requestheader { get; set; }
 
-        [Required(ErrorMessage ="Request Detail is null")]
         public IList<Requestdetail> requestdetail { get; set; }
     }
 }
