@@ -1,4 +1,3 @@
-using Mc.TD.Upload.Base.Interfaces.DataMatch;
 using Mc.TD.Upload.Domain.DataMatch;
 using System.Linq;
 using System.Net;
@@ -34,8 +33,13 @@ namespace Mc.TD.Upload.Api.Controllers
         public async Task<DataMatchUploadResponse> PostMatchedDataFiles([FromBody] DataMatchUploadRequest dataMatchUploadRequest)
         {
             DataMatchUploadResponse _dataMatchUploadResponse = new DataMatchUploadResponse();
-            _dataMatchUploadResponse.ResponseHeader = dataMatchUploadRequest.RequestHeader;
-            _dataMatchUploadResponse.ResponseDetails = dataMatchUploadRequest.RequestDetail;
+            _dataMatchUploadResponse.ResponseHeader = new ResponseHeader(dataMatchUploadRequest.RequestHeader);
+            _dataMatchUploadResponse.ResponseDetails = new List<ResponseDetail>();
+            foreach (Detail _detail in dataMatchUploadRequest.RequestDetail)
+            {
+                ResponseDetail _responseDetail = new ResponseDetail(_detail);
+                _dataMatchUploadResponse.ResponseDetails.Add(_responseDetail);
+            }
             _dataMatchUploadResponse = Validate(_dataMatchUploadResponse);
             if (_dataMatchUploadResponse.ResponseHeader.errorData.Count > 0 || _dataMatchUploadResponse.ResponseHeader.matchStatistics.errorRecords > 0)
             {
@@ -199,7 +203,7 @@ namespace Mc.TD.Upload.Api.Controllers
                 }
             }
             if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "new" && 
-                (GetFromSQL("select ordertype from BLOB where orderid = " + dataMatchUploadResponse.ResponseHeader.orderid).Rows.Count > 0))
+                (GetFromSQL("select ordertype from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "'").Rows.Count > 0))
             {
                 _errors.Add(new ErrorData()
                 {
@@ -210,7 +214,7 @@ namespace Mc.TD.Upload.Api.Controllers
                 });
             }
             if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" && 
-                (GetFromSQL("select ordertype from BLOB where orderid = " + dataMatchUploadResponse.ResponseHeader.orderid).Rows.Count == 0))
+                (GetFromSQL("select ordertype from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "'").Rows.Count == 0))
             {
                 _errors.Add(new ErrorData()
                 {
@@ -357,7 +361,7 @@ namespace Mc.TD.Upload.Api.Controllers
 
                 if ((dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing") &&
                     (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") &&
-                    (!GetFromSQL("select trackid from BLOB where id = " + dataMatchUploadResponse.ResponseDetails[i].id).Rows.Contains(dataMatchUploadResponse.ResponseDetails[i].trackid)))
+                    (!GetFromSQL("select trackid from BLOB where id = '" + dataMatchUploadResponse.ResponseDetails[i].id + "'").Rows.Contains(dataMatchUploadResponse.ResponseDetails[i].trackid)))
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -522,9 +526,28 @@ namespace Mc.TD.Upload.Api.Controllers
             {
                 foreach (Detail _detail in dataMatchUploadRequest.RequestDetail)
                 {
+                    Linking _linking = new Linking();
+                    Linkcompliance _linkcompliance = new Linkcompliance() { referenceId = "" };
+                    _linking.linktrackid = "";
+                    _linking.linkcompliance = new List<Linkcompliance>();
+                    _linking.linkcompliance.Add(_linkcompliance);
+                    if (_detail.linking == null)
+                    {
+                        _detail.linking = _linking;
+                    }
+                    if (_detail.linking.linktrackid == null)
+                    {
+                        _detail.linking.linktrackid = "";
+                    }
+                    if (_detail.linking.linkcompliance == null)
+                    {
+                        _detail.linking.linkcompliance = new List<Linkcompliance>();
+                        _detail.linking.linkcompliance.Add(_linkcompliance);
+                    }
+
                     string _insertQuery = "INSERT INTO [dbo].[BLOB] ([orderid], [ordertype], [businessid], [matchtype], [noofrecords], [email], " +
                         "[id], [requesttype], [trackid], [companyname], [address1], [address2], [address3], [address4], [city], [state], [country], [zip], " +
-                        "[phone], [url], [contact], [ein], [tin], [vat], [registrationnumber], [monitoringType], [updatetype], [linktrackid], [referenceid], [CustomFields]) " +
+                        "[phone], [url], [contact], [ein], [tin], [vat], [registrationnumber], [monitoringType], [linktrackid], [referenceid], [CustomFields]) " +
                         "VALUES ( " +
                         " N'" + (dataMatchUploadRequest.RequestHeader.orderid)
                     + "', N'" + (dataMatchUploadRequest.RequestHeader.ordertype)
@@ -552,7 +575,6 @@ namespace Mc.TD.Upload.Api.Controllers
                     + "', N'" + (_detail.vat)
                     + "', N'" + (_detail.registrationnumber)
                     + "', N'" + (_detail.monitoringType)
-                    + "', N'" + (_detail.updatetype)
                     + "', N'" + (_detail.linking.linktrackid)
                     + "', N'" + (_detail.linking.linkcompliance[0].referenceId)
                     + "', N'" + (_detail.customfields)
