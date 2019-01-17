@@ -129,13 +129,12 @@ namespace Mc.TD.Upload.Api.Controllers
 
         //    return new DataMatchUploadResponse();
         //}
-
         public DataMatchUploadResponse Validate(DataMatchUploadResponse dataMatchUploadResponse)
         {
             List<ErrorData> _errors = new List<ErrorData>();
-            int _totalRecords = 0;
+            int _totalRecords = dataMatchUploadResponse.ResponseDetails.Count;
             int _errorRecords = 0;
-            
+            dataMatchUploadResponse.ResponseHeader.errorData.Clear();
             if (dataMatchUploadResponse.ResponseHeader.orderid == null)
             {
                 _errors.Add(new ErrorData()
@@ -282,20 +281,22 @@ namespace Mc.TD.Upload.Api.Controllers
 
             if (_errors.Count > 0)
             {
-                dataMatchUploadResponse.ResponseHeader.errorData.Concat(_errors);
-                _totalRecords = dataMatchUploadResponse.ResponseDetails.Count;
+                foreach (ErrorData _error in _errors)
+                {
+                    dataMatchUploadResponse.ResponseHeader.errorData.Add(_error);
+                }                
             }
 
             for (int i=0; i< _totalRecords; i++)
             {
                 _errors = new List<ErrorData>();
+                dataMatchUploadResponse.ResponseDetails[i].errorData.Clear();
                 if (dataMatchUploadResponse.ResponseDetails[i].id == null)
                 {
                     _errors.Add(new ErrorData()
                     {
                         errorField = "id",
                         errorCause = "INVALID_REQUEST",
-
                         errorExplanation = "id is not present",
                         errorValidationType = "MISSING"
                     });
@@ -324,7 +325,8 @@ namespace Mc.TD.Upload.Api.Controllers
                 }
 
                 if ((dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "new") &&
-                    ((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link") || (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update")))
+                    ((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link") || 
+                    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update")))
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -348,7 +350,8 @@ namespace Mc.TD.Upload.Api.Controllers
                     });
                 }
 
-                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
+                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || 
+                    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
                     (dataMatchUploadResponse.ResponseDetails[i].trackid == null))
                 {
                     _errors.Add(new ErrorData()
@@ -360,7 +363,8 @@ namespace Mc.TD.Upload.Api.Controllers
                     });
                 }
 
-                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
+                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || 
+                    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
                     (dataMatchUploadResponse.ResponseDetails[i].trackid == string.Empty))
                 {
                     _errors.Add(new ErrorData()
@@ -372,7 +376,8 @@ namespace Mc.TD.Upload.Api.Controllers
                     });
                 }
 
-                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
+                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || 
+                    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
                     (dataMatchUploadResponse.ResponseDetails[i].trackid == string.Empty))
                 {
                     _errors.Add(new ErrorData()
@@ -407,7 +412,8 @@ namespace Mc.TD.Upload.Api.Controllers
 
                 if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
                     dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
-                    dataMatchUploadResponse.ResponseDetails[i].trackid != null && dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId != null)
+                    dataMatchUploadResponse.ResponseDetails[i].trackid != null && 
+                    dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId != null)
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -433,7 +439,8 @@ namespace Mc.TD.Upload.Api.Controllers
 
                 if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
                     dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
-                    dataMatchUploadResponse.ResponseDetails[i].trackid == null && dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId == null)
+                    dataMatchUploadResponse.ResponseDetails[i].trackid == null && 
+                    dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId == null)
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -461,17 +468,33 @@ namespace Mc.TD.Upload.Api.Controllers
         {
             DataTable _dataTable = new DataTable();
             SqlConnection _sqlConnection = new SqlConnection("Data Source=(LocalDB)\\MSSQLLocalDB;AttachDbFilename=C:\\DOMINIC\\GITHUB\\Source\\Repos\\DominicLutherEarl\\MCWebApplication\\MCAPI\\App_Data\\MCAPIDB.mdf;Integrated Security=True");
-            SqlCommand _sqlCommand = new SqlCommand(query, _sqlConnection);
-            SqlDataAdapter _sqlDataAdapter = new SqlDataAdapter(_sqlCommand);
-            _sqlConnection.Open();
-            _sqlDataAdapter.Fill(_dataTable);
-            _sqlConnection.Close();
-            _sqlDataAdapter.Dispose();
+            try
+            {
+                SqlCommand _sqlCommand = new SqlCommand(query, _sqlConnection);
+                SqlDataAdapter _sqlDataAdapter = new SqlDataAdapter(_sqlCommand);
+                _sqlConnection.Open();
+                _sqlDataAdapter.Fill(_dataTable);
+                _sqlConnection.Close();
+                _sqlDataAdapter.Dispose();
+            }
+            catch (Exception _exception)
+            {
+
+            }
+            finally
+            {
+                if (_sqlConnection.State != ConnectionState.Closed)
+                {
+                    _sqlConnection.Close();
+                }
+            }
             return _dataTable;
         }
 
         public bool InsertIntoSQL(DataMatchUploadRequest dataMatchUploadRequest)
         {
+            SqlConnection _sqlConnection = new SqlConnection("Data Source=(LocalDB)\\MSSQLLocalDB;AttachDbFilename=C:\\DOMINIC\\GITHUB\\Source\\Repos\\DominicLutherEarl\\MCWebApplication\\MCAPI\\App_Data\\MCAPIDB.mdf;Integrated Security=True");
+            SqlCommand _sqlCommand;
             try
             {
                 foreach (Detail _detail in dataMatchUploadRequest.RequestDetails)
@@ -509,17 +532,21 @@ namespace Mc.TD.Upload.Api.Controllers
                     + "', N'" + (_detail.updatetype)
                     + "', N'" + (_detail.linking.linktrackid)
                     + "', N'" + (_detail.linking.linkcompliance[0].referenceId)
-                    + "', N'" + (_detail.customfields);
-
-                    SqlConnection _sqlConnection = new SqlConnection("Data Source=(LocalDB)\\MSSQLLocalDB;AttachDbFilename=C:\\DOMINIC\\GITHUB\\Source\\Repos\\DominicLutherEarl\\MCWebApplication\\MCAPI\\App_Data\\MCAPIDB.mdf;Integrated Security=True");
-                    SqlCommand _sqlCommand = new SqlCommand(_insertQuery, _sqlConnection);
-                    _sqlCommand.ExecuteNonQuery();                    
+                    + "', N'" + (_detail.customfields)
+                    + "')";
+                    _sqlCommand = new SqlCommand(_insertQuery, _sqlConnection);
+                    _sqlConnection.Open();
+                    _sqlCommand.ExecuteNonQuery();
                 }
                 return true;
             }
             catch (Exception _exception)
             {
                 return false;
+            }
+            finally
+            {
+                _sqlConnection.Close();
             }
         }
     }

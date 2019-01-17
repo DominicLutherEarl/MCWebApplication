@@ -133,7 +133,6 @@
     <Compile Include="Models\ResponseHeader.cs" />
     <Compile Include="Models\Requestheader.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="MCAPIValidationAttribute.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

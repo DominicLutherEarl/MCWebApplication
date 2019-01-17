@@ -21,6 +21,6 @@ namespace Mc.TD.Upload.Domain.DataMatch
         public string updatetype { get; set; }
         public Linking linking { get; set; }
         public CustomFields customfields { get; set; }
-        public List<ErrorData> errorData { get; set; }
+        public List<ErrorData> errorData;
     }
 }
