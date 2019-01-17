@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\Microsoft.CodeDom.Providers.DotNetCompilerPlatform.2.0.0\build\net46\Microsoft.CodeDom.Providers.DotNetCompilerPlatform.props" Condition="Exists('..\packages\Microsoft.CodeDom.Providers.DotNetCompilerPlatform.2.0.0\build\net46\Microsoft.CodeDom.Providers.DotNetCompilerPlatform.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -114,24 +114,7 @@
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
-    <Compile Include="Models\Address.cs" />
-    <Compile Include="Models\CustomFields.cs" />
-    <Compile Include="Models\DataMatchUploadResponse.cs" />
-    <Compile Include="Models\DataMatchUploadRequest.cs" />
-    <Compile Include="Models\DataMatchUploadResponseBody.cs" />
-    <Compile Include="Models\DataMatchUploadRequestBody.cs" />
-    <Compile Include="Models\ErrorData.cs" />
-    <Compile Include="Models\DMUResponse.cs" />
-    <Compile Include="Models\DataMatchUploadResponse_old.cs" />
-    <Compile Include="Models\Interfaces\IDataMatchUploadService.cs" />
-    <Compile Include="Models\LinkCompliance.cs" />
-    <Compile Include="Models\Linking.cs" />
-    <Compile Include="Models\Details.cs" />
-    <Compile Include="Models\Header.cs" />
-    <Compile Include="Models\ResponseDetails.cs" />
-    <Compile Include="Models\RequestDetails.cs" />
-    <Compile Include="Models\ResponseHeader.cs" />
-    <Compile Include="Models\Requestheader.cs" />
+    <Compile Include="Models\Models.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
