@@ -1,23 +1,15 @@
-using Mc.TD.Upload.Domain.DataMatch;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.SqlClient;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Threading.Tasks;
 using System.Web.Http;
 using System.Web.Http.Description;
-using System.ComponentModel.DataAnnotations;
-using System.Collections.Generic;
-using System;
-using System.Web.ModelBinding;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Blob;
-using System.IO;
-using System.Data;
-using System.Data.SqlClient;
 
-namespace Mc.TD.Upload.Api.Controllers
+namespace MC.Track.FileValidationAPI
 {
-    public class DataMatchUploadController : ApiController
+    public class FileValidationController : ApiController
     {
         public string connectionString
         {
@@ -28,9 +20,9 @@ namespace Mc.TD.Upload.Api.Controllers
             set { }
         }
         [HttpPost]
-        [Route("PostMatchedDataFiles")]
+        [Route("ValidatePayload")]
         [ResponseType(typeof(DataMatchUploadResponse))]
-        public async Task<DataMatchUploadResponse> PostMatchedDataFiles([FromBody] DataMatchUploadRequest dataMatchUploadRequest)
+        public async Task<DataMatchUploadResponse> ValidatePayload([FromBody] DataMatchUploadRequest dataMatchUploadRequest)
         {
             DataMatchUploadResponse _dataMatchUploadResponse = new DataMatchUploadResponse();
             _dataMatchUploadResponse.ResponseHeader = new ResponseHeader(dataMatchUploadRequest.RequestHeader);

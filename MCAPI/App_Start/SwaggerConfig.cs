@@ -1,11 +1,11 @@
+using MC.Track.FileValidationAPI;
+using Swashbuckle.Application;
 using System.Web.Http;
 using WebActivatorEx;
-using MCAPI;
-using Swashbuckle.Application;
 
 [assembly: PreApplicationStartMethod(typeof(SwaggerConfig), "Register")]
 
-namespace MCAPI
+namespace MC.Track.FileValidationAPI
 {
     public class SwaggerConfig
     {
@@ -32,7 +32,7 @@ namespace MCAPI
                         // hold additional metadata for an API. Version and title are required but you can also provide
                         // additional fields by chaining methods off SingleApiVersion.
                         //
-                        c.SingleApiVersion("v1", "MCAPI");
+                        c.SingleApiVersion("v1", "MC.Track.FileValidationAPI");
 
                         // If you want the output Swagger docs to be indented properly, enable the "PrettyPrint" option.
                         //
