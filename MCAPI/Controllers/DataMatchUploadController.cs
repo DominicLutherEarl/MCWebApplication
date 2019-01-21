@@ -221,9 +221,9 @@ namespace MC.Track.FileValidationAPI
             {
                 _errors.Add(new ErrorData()
                 {
-                    errorField = "businessid",
+                    errorField = "businessId",
                     errorCause = "INVALID_REQUEST",
-                    errorExplanation = "businessid field is not present",
+                    errorExplanation = "businessId field is not present",
                     errorValidationType = "MISSING"
                 });
             }
@@ -233,9 +233,9 @@ namespace MC.Track.FileValidationAPI
                 {
                     _errors.Add(new ErrorData()
                     {
-                        errorField = "businessid",
+                        errorField = "businessId",
                         errorCause = "INVALID_REQUEST",
-                        errorExplanation = "value provided in businessid field is not valid",
+                        errorExplanation = "value provided in businessId field is not valid",
                         errorValidationType = "INVALID"
                     });
                 }
@@ -245,9 +245,9 @@ namespace MC.Track.FileValidationAPI
             {
                 _errors.Add(new ErrorData()
                 {
-                    errorField = "matchtype",
+                    errorField = "matchType",
                     errorCause = "INVALID_REQUEST",
-                    errorExplanation = "value provided in matchtype is not valid",
+                    errorExplanation = "value provided in matchType is not valid",
                     errorValidationType = "INVALID"
                 });
             }
@@ -256,9 +256,9 @@ namespace MC.Track.FileValidationAPI
             {
                 _errors.Add(new ErrorData()
                 {
-                    errorField = "noofrecords",
+                    errorField = "noofRecords",
                     errorCause = "INVALID_REQUEST",
-                    errorExplanation = "noofrecords is not present",
+                    errorExplanation = "noofRecords is not present",
                     errorValidationType = "MISSING"
                 });
             }
@@ -268,9 +268,9 @@ namespace MC.Track.FileValidationAPI
                 {
                     _errors.Add(new ErrorData()
                     {
-                        errorField = "noofrecords",
+                        errorField = "noofRecords",
                         errorCause = "INVALID_REQUEST",
-                        errorExplanation = "value provided in noofrecords field is not valid",
+                        errorExplanation = "value provided in noofRecords field is not valid",
                         errorValidationType = "INVALID"
                     });
                 }
@@ -297,7 +297,7 @@ namespace MC.Track.FileValidationAPI
                 return dataMatchUploadResponse;
             }
 
-            for (int i=0; i< _totalRecords; i++)
+            for (int i = 0; i < _totalRecords; i++)
             {
                 _errors = new List<ErrorData>();
                 if (dataMatchUploadResponse.ResponseDetails[i].errorData == null)
@@ -316,6 +316,29 @@ namespace MC.Track.FileValidationAPI
                     });
                 }
 
+                if (dataMatchUploadResponse.ResponseHeader.ordertype == "new" && dataMatchUploadResponse.ResponseDetails[i].id != null && (dataMatchUploadResponse.ResponseDetails.Where(_ => _.id == dataMatchUploadResponse.ResponseDetails[i].id).Count() > 1))
+                {
+                    _errors.Add(new ErrorData()
+                    {
+                        errorField = "id",
+                        errorCause = "INVALID_REQUEST",
+                        errorExplanation = "value provided in id field is duplicate",
+                        errorValidationType = "INVALID"
+                    });
+                }
+
+                if (dataMatchUploadResponse.ResponseHeader.ordertype == "existing" &&
+                    GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and id = '" + dataMatchUploadResponse.ResponseDetails[i].id + "'").Rows.Count < 1)
+                {
+                    _errors.Add(new ErrorData()
+                    {
+                        errorField = "id",
+                        errorCause = "INVALID_REQUEST",
+                        errorExplanation = "value provided in id field does not exist in the order",
+                        errorValidationType = "INVALID"
+                    });
+                }
+
                 if (dataMatchUploadResponse.ResponseDetails[i].requesttype == null)
                 {
                     _errors.Add(new ErrorData()
@@ -325,9 +348,9 @@ namespace MC.Track.FileValidationAPI
                         errorExplanation = "requestType is not present",
                         errorValidationType = "MISSING"
                     });
+                    dataMatchUploadResponse.ResponseDetails[i].requesttype = string.Empty;
                 }
-
-                if (dataMatchUploadResponse.ResponseDetails[i].requesttype == string.Empty)
+                else if (dataMatchUploadResponse.ResponseDetails[i].requesttype == string.Empty)
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -339,7 +362,7 @@ namespace MC.Track.FileValidationAPI
                 }
 
                 if ((dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "new") &&
-                    ((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link") || 
+                    ((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link") ||
                     (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update")))
                 {
                     _errors.Add(new ErrorData()
@@ -353,7 +376,7 @@ namespace MC.Track.FileValidationAPI
 
                 if ((dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing") &&
                     (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") &&
-                    (!GetFromSQL("select trackid from BLOB where id = '" + dataMatchUploadResponse.ResponseDetails[i].id + "'").Rows.Contains(dataMatchUploadResponse.ResponseDetails[i].trackid)))
+                    (!(GetFromSQL("select trackid from BLOB where id = '" + dataMatchUploadResponse.ResponseDetails[i].id + "' and trackid ='" + (dataMatchUploadResponse.ResponseDetails[i].trackid??"") +"'").Rows.Count>0)))
                 {
                     _errors.Add(new ErrorData()
                     {
@@ -364,7 +387,20 @@ namespace MC.Track.FileValidationAPI
                     });
                 }
 
-                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || 
+                //if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") ||
+                //    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
+                //    (dataMatchUploadResponse.ResponseDetails[i].trackid == null))
+                //{
+                //    _errors.Add(new ErrorData()
+                //    {
+                //        errorField = "trackid",
+                //        errorCause = "INVALID_REQUEST",
+                //        errorExplanation = "value provided in the trackId field for requesting updates is not for a purchased record",
+                //        errorValidationType = "MISSING"
+                //    });
+                //}
+
+                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") ||
                     (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
                     (dataMatchUploadResponse.ResponseDetails[i].trackid == null))
                 {
@@ -372,25 +408,11 @@ namespace MC.Track.FileValidationAPI
                     {
                         errorField = "trackid",
                         errorCause = "INVALID_REQUEST",
-                        errorExplanation = "value provided in the trackId field for requesting updates is not for a purchased record",
+                        errorExplanation = "trackId is not present",
                         errorValidationType = "MISSING"
                     });
                 }
-
-                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || 
-                    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
-                    (dataMatchUploadResponse.ResponseDetails[i].trackid == string.Empty))
-                {
-                    _errors.Add(new ErrorData()
-                    {
-                        errorField = "trackid",
-                        errorCause = "INVALID_REQUEST",
-                        errorExplanation = "value provided in the trackId field is not valid",
-                        errorValidationType = "INVALID"
-                    });
-                }
-
-                if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") || 
+                else if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") ||
                     (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
                     (dataMatchUploadResponse.ResponseDetails[i].trackid == string.Empty))
                 {
@@ -423,56 +445,78 @@ namespace MC.Track.FileValidationAPI
                         errorValidationType = "INVALID"
                     });
                 }
-
+                
                 if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
-                    dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
-                    dataMatchUploadResponse.ResponseDetails[i].trackid != null && 
-                    dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId != null)
+                    dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")
                 {
-                    _errors.Add(new ErrorData()
+                    if (dataMatchUploadResponse.ResponseDetails[i].trackid == null)
                     {
-                        errorField = "link",
-                        errorCause = "INVALID_REQUEST",
-                        errorExplanation = "trackId and referenceId should not be provided in the same request for linking",
-                        errorValidationType = "INVALID"
-                    });
-                }
-
-                if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
-                    dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
-                    !(GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and trackid = '" + dataMatchUploadResponse.ResponseDetails[i].trackid + "'").Rows.Count > 0))
-                {
-                    _errors.Add(new ErrorData()
-                    {
-                        errorField = "trackid",
-                        errorCause = "INVALID_REQUEST",
-                        errorExplanation = "value provided in trackId field to link a request record to a trade directory record is not valid",
-                        errorValidationType = "INVALID"
-                    });
-                }
-
-                if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
-                    dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
-                    dataMatchUploadResponse.ResponseDetails[i].trackid == null && 
-                    dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId == null)
-                {
-                    _errors.Add(new ErrorData()
-                    {
-                        errorField = "requestType",
-                        errorCause = "INVALID_REQUEST",
-                        errorExplanation = "trackId or referenceId not present in the request for linking",
-                        errorValidationType = "INVALID"
-                    });
-                }
-
-                if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
-                    dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
-                    !(GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and referenceid = '" + dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId + "'").Rows.Count > 0))
-                    if (_errors.Count >0)
-                    {
-                        dataMatchUploadResponse.ResponseDetails[i].errorData.Concat(_errors);
-                        _errorRecords++;
+                        if (dataMatchUploadResponse.ResponseDetails[i].linking == null ||
+                            (dataMatchUploadResponse.ResponseDetails[i].linking != null && dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance == null) ||
+                            (dataMatchUploadResponse.ResponseDetails[i].linking != null && dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance.Count < 1) ||
+                            (dataMatchUploadResponse.ResponseDetails[i].linking != null && dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance.Count > 0 && String.IsNullOrEmpty(dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId))
+                            )
+                        {
+                            _errors.Add(new ErrorData()
+                            {
+                                errorField = "requestType",
+                                errorCause = "INVALID_REQUEST",
+                                errorExplanation = "trackId or referenceId not present in the request for linking",
+                                errorValidationType = "INVALID"
+                            });
+                        }
+                        else if (GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and referenceId = '" + dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId + "'").Rows.Count < 1)
+                        {
+                            _errors.Add(new ErrorData()
+                            {
+                                errorField = "referenceId",
+                                errorCause = "INVALID_REQUEST",
+                                errorExplanation = "value provided in referenceId to link trade directory record to compliance record is not valid",
+                                errorValidationType = "INVALID"
+                            });
+                        }
                     }
+                    else
+                    {
+                        if (dataMatchUploadResponse.ResponseDetails[i].linking != null)
+                        {
+                            if (
+                              (dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance != null) ||
+                              (dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance.Count > 0) ||
+                              dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId != null
+                              )
+                            {
+                                _errors.Add(new ErrorData()
+                                {
+                                    errorField = "link",
+                                    errorCause = "INVALID_REQUEST",
+                                    errorExplanation = "trackId and referenceId should not be provided in the same request for linking",
+                                    errorValidationType = "INVALID"
+                                });
+                            }
+                        }
+                        else if (GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and linktrackid = '" + dataMatchUploadResponse.ResponseDetails[i].trackid + "'").Rows.Count < 1)
+                        {
+                            _errors.Add(new ErrorData()
+                            {
+                                errorField = "trackId",
+                                errorCause = "INVALID_REQUEST",
+                                errorExplanation = "value provided in trackId field to link a request record to a trade directory record is not valid",
+                                errorValidationType = "INVALID"
+                            });
+                        }
+                    }
+                }
+
+                if (_errors.Count > 0)
+                {
+                    dataMatchUploadResponse.ResponseDetails[i].errorData.Concat(_errors);
+                    _errorRecords++;
+                }
+                foreach (ErrorData _errorData in _errors)
+                {
+                    dataMatchUploadResponse.ResponseDetails[i].errorData.Add(_errorData);
+                }
             }
             if (dataMatchUploadResponse.ResponseHeader.matchStatistics == null)
             {
