@@ -48,7 +48,7 @@ namespace MC.Track.FileValidationAPI
             this.vat = detail.vat;
             this.registrationnumber = detail.registrationnumber;
             this.monitoringType = detail.monitoringType;
-            this.linking = detail.linking;
+            this.link = detail.link;
             this.customfields = detail.customfields;
         }
         public List<ErrorData> errorData;
@@ -82,7 +82,7 @@ namespace MC.Track.FileValidationAPI
         public string vat { get; set; }
         public string registrationnumber { get; set; }
         public string monitoringType { get; set; }
-        public Linking linking { get; set; }
+        public Linking link { get; set; }
         public CustomFields customfields { get; set; }
     }
     public class Address
@@ -115,8 +115,8 @@ namespace MC.Track.FileValidationAPI
     }
     public class Linking
     {
-        public string linktrackid { get; set; }
-        public IList<Linkcompliance> linkcompliance { get; set; }
+        public string trackid { get; set; }
+        public IList<Linkcompliance> compliance { get; set; }
     }
     public class ErrorData
     {

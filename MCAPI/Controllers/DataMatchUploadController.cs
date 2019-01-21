@@ -451,10 +451,10 @@ namespace MC.Track.FileValidationAPI
                 {
                     if (dataMatchUploadResponse.ResponseDetails[i].trackid == null)
                     {
-                        if (dataMatchUploadResponse.ResponseDetails[i].linking == null ||
-                            (dataMatchUploadResponse.ResponseDetails[i].linking != null && dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance == null) ||
-                            (dataMatchUploadResponse.ResponseDetails[i].linking != null && dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance.Count < 1) ||
-                            (dataMatchUploadResponse.ResponseDetails[i].linking != null && dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance.Count > 0 && String.IsNullOrEmpty(dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId))
+                        if (dataMatchUploadResponse.ResponseDetails[i].link == null ||
+                            (dataMatchUploadResponse.ResponseDetails[i].link != null && dataMatchUploadResponse.ResponseDetails[i].link.compliance == null) ||
+                            (dataMatchUploadResponse.ResponseDetails[i].link != null && dataMatchUploadResponse.ResponseDetails[i].link.compliance.Count < 1) ||
+                            (dataMatchUploadResponse.ResponseDetails[i].link != null && dataMatchUploadResponse.ResponseDetails[i].link.compliance.Count > 0 && String.IsNullOrEmpty(dataMatchUploadResponse.ResponseDetails[i].link.compliance[0].referenceId))
                             )
                         {
                             _errors.Add(new ErrorData()
@@ -465,7 +465,7 @@ namespace MC.Track.FileValidationAPI
                                 errorValidationType = "INVALID"
                             });
                         }
-                        else if (GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and referenceId = '" + dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId + "'").Rows.Count < 1)
+                        else if (GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and referenceId = '" + dataMatchUploadResponse.ResponseDetails[i].link.compliance[0].referenceId + "'").Rows.Count < 1)
                         {
                             _errors.Add(new ErrorData()
                             {
@@ -478,12 +478,12 @@ namespace MC.Track.FileValidationAPI
                     }
                     else
                     {
-                        if (dataMatchUploadResponse.ResponseDetails[i].linking != null)
+                        if (dataMatchUploadResponse.ResponseDetails[i].link != null)
                         {
                             if (
-                              (dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance != null) ||
-                              (dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance.Count > 0) ||
-                              dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId != null
+                              (dataMatchUploadResponse.ResponseDetails[i].link.compliance != null) ||
+                              (dataMatchUploadResponse.ResponseDetails[i].link.compliance.Count > 0) ||
+                              dataMatchUploadResponse.ResponseDetails[i].link.compliance[0].referenceId != null
                               )
                             {
                                 _errors.Add(new ErrorData()
@@ -564,21 +564,21 @@ namespace MC.Track.FileValidationAPI
                 {
                     Linking _linking = new Linking();
                     Linkcompliance _linkcompliance = new Linkcompliance() { referenceId = "" };
-                    _linking.linktrackid = "";
-                    _linking.linkcompliance = new List<Linkcompliance>();
-                    _linking.linkcompliance.Add(_linkcompliance);
-                    if (_detail.linking == null)
+                    _linking.trackid = "";
+                    _linking.compliance = new List<Linkcompliance>();
+                    _linking.compliance.Add(_linkcompliance);
+                    if (_detail.link == null)
                     {
-                        _detail.linking = _linking;
+                        _detail.link = _linking;
                     }
-                    if (_detail.linking.linktrackid == null)
+                    if (_detail.link.trackid == null)
                     {
-                        _detail.linking.linktrackid = "";
+                        _detail.link.trackid = "";
                     }
-                    if (_detail.linking.linkcompliance == null)
+                    if (_detail.link.compliance == null)
                     {
-                        _detail.linking.linkcompliance = new List<Linkcompliance>();
-                        _detail.linking.linkcompliance.Add(_linkcompliance);
+                        _detail.link.compliance = new List<Linkcompliance>();
+                        _detail.link.compliance.Add(_linkcompliance);
                     }
 
                     string _insertQuery = "INSERT INTO [dbo].[BLOB] ([orderid], [ordertype], [businessid], [matchtype], [noofrecords], [email], " +
@@ -611,8 +611,8 @@ namespace MC.Track.FileValidationAPI
                     + "', N'" + (_detail.vat)
                     + "', N'" + (_detail.registrationnumber)
                     + "', N'" + (_detail.monitoringType)
-                    + "', N'" + (_detail.linking.linktrackid)
-                    + "', N'" + (_detail.linking.linkcompliance[0].referenceId)
+                    + "', N'" + (_detail.link.trackid)
+                    + "', N'" + (_detail.link.compliance[0].referenceId)
                     + "', N'" + (_detail.customfields)
                     + "')";
                     _sqlCommand = new SqlCommand(_insertQuery, _sqlConnection);

@@ -419,101 +419,101 @@ namespace MC.Track.FileValidationAPI.Tests.Integration
             Assert.IsTrue(_flag && _isTrue);
         }
 
-        //[TestMethod]
-        //public void Validation13()
-        //{
-        //    string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
-        //            "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"premium\"," +
-        //            "\"trackId\": \"\",\"companyName\": \"Mastercard\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
-        //            "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
-        //            "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"manual\"," +
-        //            "\"link\": {\"trackId\": \"\",\"compliance\": [{\"referenceId\": \"\"},{\"referenceId\": \"\"}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
-        //            "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
-        //            "\"customField10\": \"\"}}]}";
-        //    string _validationMessage = "value provided in orderId field is not valid";
-        //    this.SendPayloadAsync(_jSONPayload, _validationMessage);
-        //    Assert.IsTrue(_isTrue);
-        //}
+        [TestMethod]
+        public void Validation22()
+        {
+            string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
+                    "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"premium\"," +
+                    "\"trackId\": \"\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
+                    "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
+                    "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"manual\"," +
+                    "\"link\": {\"trackId\": \"\",\"compliance\": [{\"referenceId\": \"\"},{\"referenceId\": \"\"}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
+                    "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
+                    "\"customField10\": \"\"}}]}";
+            string _validationMessage = "companyName is not present";
+            this.SendPayloadAsync(_jSONPayload, _validationMessage);
+            Assert.IsTrue(_isTrue);
+        }
 
-        //[TestMethod]
-        //public void Validation13()
-        //{
-        //    string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
-        //            "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"premium\"," +
-        //            "\"trackId\": \"\",\"companyName\": \"Mastercard\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
-        //            "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
-        //            "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"manual\"," +
-        //            "\"link\": {\"trackId\": \"\",\"compliance\": [{\"referenceId\": \"\"},{\"referenceId\": \"\"}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
-        //            "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
-        //            "\"customField10\": \"\"}}]}";
-        //    string _validationMessage = "value provided in orderId field is not valid";
-        //    this.SendPayloadAsync(_jSONPayload, _validationMessage);
-        //    Assert.IsTrue(_isTrue);
-        //}
+        [TestMethod]
+        public void Validation23()
+        {
+            string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
+                    "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"premium\"," +
+                    "\"trackId\": \"\",\"companyName\": \"Mastercard\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
+                    "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
+                    "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"\"," +
+                    "\"link\": {\"trackId\": \"\",\"compliance\": [{\"referenceId\": \"\"},{\"referenceId\": \"\"}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
+                    "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
+                    "\"customField10\": \"\"}}]}";
+            string _validationMessage = "value provided in monitoring field is not valid";
+            this.SendPayloadAsync(_jSONPayload, _validationMessage);
+            Assert.IsTrue(_isTrue);
+        }
 
-        //[TestMethod]
-        //public void Validation13()
-        //{
-        //    string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
-        //            "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"premium\"," +
-        //            "\"trackId\": \"\",\"companyName\": \"Mastercard\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
-        //            "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
-        //            "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"manual\"," +
-        //            "\"link\": {\"trackId\": \"\",\"compliance\": [{\"referenceId\": \"\"},{\"referenceId\": \"\"}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
-        //            "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
-        //            "\"customField10\": \"\"}}]}";
-        //    string _validationMessage = "value provided in orderId field is not valid";
-        //    this.SendPayloadAsync(_jSONPayload, _validationMessage);
-        //    Assert.IsTrue(_isTrue);
-        //}
+        [TestMethod]
+        public void Validation24()
+        {
+            string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
+                    "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"link\"," +
+                    "\"trackId\": \"\",\"companyName\": \"Mastercard\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
+                    "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
+                    "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"manual\"," +
+                    "\"link\": {\"trackId\": \"01\",\"compliance\": [{\"referenceId\": \"11223344\"},{\"referenceId\": \"22334455\"}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
+                    "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
+                    "\"customField10\": \"\"}}]}";
+            string _validationMessage = "trackId and referenceId should not be provided in the same request for linking";
+            this.SendPayloadAsync(_jSONPayload, _validationMessage);
+            Assert.IsTrue(_isTrue);
+        }
 
-        //[TestMethod]
-        //public void Validation13()
-        //{
-        //    string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
-        //            "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"premium\"," +
-        //            "\"trackId\": \"\",\"companyName\": \"Mastercard\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
-        //            "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
-        //            "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"manual\"," +
-        //            "\"link\": {\"trackId\": \"\",\"compliance\": [{\"referenceId\": \"\"},{\"referenceId\": \"\"}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
-        //            "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
-        //            "\"customField10\": \"\"}}]}";
-        //    string _validationMessage = "value provided in orderId field is not valid";
-        //    this.SendPayloadAsync(_jSONPayload, _validationMessage);
-        //    Assert.IsTrue(_isTrue);
-        //}
+        [TestMethod]
+        public void Validation25()
+        {
+            string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
+                    "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"link\"," +
+                    "\"trackId\": \"\",\"companyName\": \"Mastercard\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
+                    "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
+                    "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"manual\"," +
+                    "\"link\": {\"trackId\": \""+DateTime.Now.Ticks.ToString()+"\",\"compliance\": [{}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
+                    "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
+                    "\"customField10\": \"\"}}]}";
+            string _validationMessage = "value provided in orderId field is not valid";
+            this.SendPayloadAsync(_jSONPayload, _validationMessage);
+            Assert.IsTrue(_isTrue);
+        }
 
-        //[TestMethod]
-        //public void Validation13()
-        //{
-        //    string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
-        //            "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"premium\"," +
-        //            "\"trackId\": \"\",\"companyName\": \"Mastercard\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
-        //            "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
-        //            "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"manual\"," +
-        //            "\"link\": {\"trackId\": \"\",\"compliance\": [{\"referenceId\": \"\"},{\"referenceId\": \"\"}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
-        //            "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
-        //            "\"customField10\": \"\"}}]}";
-        //    string _validationMessage = "value provided in orderId field is not valid";
-        //    this.SendPayloadAsync(_jSONPayload, _validationMessage);
-        //    Assert.IsTrue(_isTrue);
-        //}
+        [TestMethod]
+        public void Validation26()
+        {
+            string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
+                    "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"link\"," +
+                    "\"trackId\": \"\",\"companyName\": \"Mastercard\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
+                    "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
+                    "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"manual\"," +
+                    "\"link\": {\"trackId\": \"\",\"compliance\": [{\"referenceId\": \"\"},{\"referenceId\": \"\"}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
+                    "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
+                    "\"customField10\": \"\"}}]}";
+            string _validationMessage = "value provided in orderId field is not valid";
+            this.SendPayloadAsync(_jSONPayload, _validationMessage);
+            Assert.IsTrue(_isTrue);
+        }
 
-        //[TestMethod]
-        //public void Validation13()
-        //{
-        //    string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
-        //            "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"premium\"," +
-        //            "\"trackId\": \"\",\"companyName\": \"Mastercard\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
-        //            "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
-        //            "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"manual\"," +
-        //            "\"link\": {\"trackId\": \"\",\"compliance\": [{\"referenceId\": \"\"},{\"referenceId\": \"\"}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
-        //            "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
-        //            "\"customField10\": \"\"}}]}";
-        //    string _validationMessage = "value provided in orderId field is not valid";
-        //    this.SendPayloadAsync(_jSONPayload, _validationMessage);
-        //    Assert.IsTrue(_isTrue);
-        //}
+        [TestMethod]
+        public void Validation27()
+        {
+            string _jSONPayload = "{\"requestHeader\": {\"orderId\": \"1\",\"orderType\": \"existing\",\"businessId\": \"US2018000000023\"," +
+                    "\"matchType\": \"highconfidence\",\"noofRecords\": \"1\",\"email\": \"sampleops@company.com\"},\"requestDetail\": [{\"id\": \"1\",\"requestType\": \"link\"," +
+                    "\"trackId\": \"\",\"companyName\": \"Mastercard\",\"address\": {\"address1\": \"2200 Mastercard Blvd\",\"address2\": \"\",\"address3\": \"\",\"address4\": \"\"," +
+                    "\"city\": \"O Fallon\",\"state\": \"MO\",\"country\": \"US\",\"zip\": \"63368\"},\"phone\": \"636.722.6100\",\"url\": \"https://www.mastercard.us\"," +
+                    "\"contact\": \"Allen Brewer\",\"ein\": \"13-4172551\",\"tin\": \"\",\"vat\": \"\",\"registrationNumber\": \"13-4172551\",\"monitoringType\": \"manual\"," +
+                    "\"link\": {\"trackId\": \"\",\"compliance\": [{\"referenceId\": \"\"},{\"referenceId\": \"\"}]},\"customFields\": {\"customField1\": \"\",\"customField2\": \"\"," +
+                    "\"customField3\": \"\",\"customField4\": \"\",\"customField5\": \"\",\"customField6\": \"\",\"customField7\": \"\",\"customField8\": \"\",\"customField9\": \"\"," +
+                    "\"customField10\": \"\"}}]}";
+            string _validationMessage = "value provided in orderId field is not valid";
+            this.SendPayloadAsync(_jSONPayload, _validationMessage);
+            Assert.IsTrue(_isTrue);
+        }
 
         //[TestMethod]
         //public void Validation13()
