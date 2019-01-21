@@ -451,11 +451,7 @@ namespace MC.Track.FileValidationAPI
                 {
                     if (dataMatchUploadResponse.ResponseDetails[i].trackid == null)
                     {
-                        if (dataMatchUploadResponse.ResponseDetails[i].link == null ||
-                            (dataMatchUploadResponse.ResponseDetails[i].link != null && dataMatchUploadResponse.ResponseDetails[i].link.compliance == null) ||
-                            (dataMatchUploadResponse.ResponseDetails[i].link != null && dataMatchUploadResponse.ResponseDetails[i].link.compliance.Count < 1) ||
-                            (dataMatchUploadResponse.ResponseDetails[i].link != null && dataMatchUploadResponse.ResponseDetails[i].link.compliance.Count > 0 && String.IsNullOrEmpty(dataMatchUploadResponse.ResponseDetails[i].link.compliance[0].referenceId))
-                            )
+                        if (dataMatchUploadResponse.ResponseDetails[i].link != null && dataMatchUploadResponse.ResponseDetails[i].link.compliance.Count > 0 && String.IsNullOrEmpty(dataMatchUploadResponse.ResponseDetails[i].link.compliance[0].referenceId))                            
                         {
                             _errors.Add(new ErrorData()
                             {
@@ -478,23 +474,20 @@ namespace MC.Track.FileValidationAPI
                     }
                     else
                     {
-                        if (dataMatchUploadResponse.ResponseDetails[i].link != null)
+                        if(
+                            (dataMatchUploadResponse.ResponseDetails[i].link.compliance != null) &&
+                            (dataMatchUploadResponse.ResponseDetails[i].link.compliance.Count > 0) &&
+                            dataMatchUploadResponse.ResponseDetails[i].link.compliance[0].referenceId != null
+                            )
                         {
-                            if (
-                              (dataMatchUploadResponse.ResponseDetails[i].link.compliance != null) ||
-                              (dataMatchUploadResponse.ResponseDetails[i].link.compliance.Count > 0) ||
-                              dataMatchUploadResponse.ResponseDetails[i].link.compliance[0].referenceId != null
-                              )
+                            _errors.Add(new ErrorData()
                             {
-                                _errors.Add(new ErrorData()
-                                {
-                                    errorField = "link",
-                                    errorCause = "INVALID_REQUEST",
-                                    errorExplanation = "trackId and referenceId should not be provided in the same request for linking",
-                                    errorValidationType = "INVALID"
-                                });
-                            }
-                        }
+                                errorField = "link",
+                                errorCause = "INVALID_REQUEST",
+                                errorExplanation = "trackId and referenceId should not be provided in the same request for linking",
+                                errorValidationType = "INVALID"
+                            });
+                        }                        
                         else if (GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and linktrackid = '" + dataMatchUploadResponse.ResponseDetails[i].trackid + "'").Rows.Count < 1)
                         {
                             _errors.Add(new ErrorData()
