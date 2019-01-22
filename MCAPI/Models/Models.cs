@@ -30,6 +30,7 @@ namespace MC.Track.FileValidationAPI
             this.noofrecords = header.noofrecords;
             this.email = header.email;
         }
+        [JsonProperty(Order=0)]
         public new string orderid { get; set; }
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public new string ordertype { get; set; }
@@ -41,9 +42,9 @@ namespace MC.Track.FileValidationAPI
         public new string noofrecords { get; set; }
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public new string email { get; set; }
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore, Order =2)]
         public matchStatistics matchStatistics { get; set; }
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore,Order =2)]
         public List<ErrorData> errorData;
     }
     public class ResponseDetail : Detail
