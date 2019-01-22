@@ -12,8 +12,10 @@ namespace MC.Track.FileValidationAPI
 
     public class DataMatchUploadResponse
     {
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public ResponseHeader ResponseHeader { get; set; }
 
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public IList<ResponseDetail> ResponseDetails { get; set; }
     }
 
@@ -28,7 +30,20 @@ namespace MC.Track.FileValidationAPI
             this.noofrecords = header.noofrecords;
             this.email = header.email;
         }
+        public new string orderid { get; set; }
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public new string ordertype { get; set; }
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public new string businessid { get; set; }
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public new string matchtype { get; set; }
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public new string noofrecords { get; set; }
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public new string email { get; set; }
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public matchStatistics matchStatistics { get; set; }
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public List<ErrorData> errorData;
     }
     public class ResponseDetail : Detail

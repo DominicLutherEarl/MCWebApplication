@@ -35,6 +35,19 @@ namespace MC.Track.FileValidationAPI
             _dataMatchUploadResponse = Validate(_dataMatchUploadResponse);
             if (_dataMatchUploadResponse.ResponseHeader.errorData.Count > 0 || _dataMatchUploadResponse.ResponseHeader.matchStatistics.errorRecords > 0)
             {
+                _dataMatchUploadResponse.ResponseHeader.ordertype = null;
+                _dataMatchUploadResponse.ResponseHeader.businessid = null;
+                _dataMatchUploadResponse.ResponseHeader.email = null;
+                _dataMatchUploadResponse.ResponseHeader.matchtype = null;
+                _dataMatchUploadResponse.ResponseHeader.noofrecords = null;
+                if (_dataMatchUploadResponse.ResponseHeader.errorData.Count > 0)
+                {
+                    _dataMatchUploadResponse.ResponseHeader.matchStatistics = null;
+                }
+                else
+                {
+                    _dataMatchUploadResponse.ResponseHeader.errorData = null;
+                }
                 return _dataMatchUploadResponse;
             }
             System.Net.Http.Headers.HttpRequestHeaders headers = this.Request.Headers;
@@ -53,91 +66,13 @@ namespace MC.Track.FileValidationAPI
             //return GenerateResponse(await _dataMatchUploadResponse.UploadDataMatchFile(UploadedFile, businessId, fileId));
         }
         
-        //[HttpPost]
-        //[Route("2")]
-        //[ResponseType(typeof(DataMatchUploadResponseBody))]
-        //public async Task<DataMatchUploadResponseBody> PostMatchedDataFiles2([FromBody] DataMatchUploadRequestBody UploadedFile)
-        //{
-        //    DataMatchUploadResponseBody _dMUResponse = new DataMatchUploadResponseBody() { responseheader = new ResponseHeader() };
-        //    if (!ModelState.IsValid)
-        //    {
-        //        _dMUResponse.responseheader.orderid = (UploadedFile.requestheader.orderid == null) ? string.Empty : UploadedFile.requestheader.orderid;
-        //        ResponseDetail _responseDetail = new ResponseDetail();
-        //        _responseDetail.id = "1";
-        //        _responseDetail.requestData = UploadedFile.requestdetail;
-        //        _responseDetail.errorData = new List<ErrorData>();
-
-        //        foreach (var field in ModelState.Keys)
-        //        {
-        //            if (ModelState[field].Errors != null)
-        //            {
-        //                foreach (var _error in ModelState[field].Errors)
-        //                {
-        //                    ErrorData _errorData = new ErrorData()
-        //                    {
-        //                        errorCause = "Invalid Request",
-        //                        errorField = field,
-        //                        errorExplanation = _error.ErrorMessage,
-        //                        errorValidationType = ""
-        //                    };
-        //                    _responseDetail.errorData.Add(_errorData);
-        //                }
-        //            }
-        //        }
-        //        _dMUResponse.responsedetail = new List<ResponseDetail>();
-        //        _dMUResponse.responsedetail.Add(_responseDetail);
-        //        return _dMUResponse;
-        //    }
-        //    System.Net.Http.Headers.HttpRequestHeaders headers = this.Request.Headers;
-        //    string businessId = string.Empty;
-        //    string fileId = string.Empty;
-        //    if (headers.Contains("businessId"))
-        //    {
-        //        businessId = headers.GetValues("businessId").FirstOrDefault();
-        //    }
-        //    if (headers.Contains("businessId"))
-        //    {
-        //        fileId = headers.GetValues("fileId").FirstOrDefault();
-        //    }
-        //    return _dMUResponse;
-        //    //return GenerateResponse(await _dataMatchUploadResponse.UploadDataMatchFile(UploadedFile, businessId, fileId));
-        //}
-        
-        //private DataMatchUploadResponse GenerateResponse(DataMatchUploadResponse response, ModelStateDictionary modelState = null)
-        //{
-        //    //DataMatchUploadResponse _dataMatchUploadResponse;
-        //    //if (response.statusCode == 400)
-        //    //    _dataMatchUploadResponse = new DataMatchUploadResponse() {result = "", statusCode = response.statusCode }//Request.CreateResponse(HttpStatusCode.BadRequest, response);
-
-        //    //if (response.statusCode == 409)
-        //    //    result = Request.CreateResponse(HttpStatusCode.Conflict, response);
-
-        //    //if (response.statusCode == 202)
-        //    //    result = Request.CreateResponse(HttpStatusCode.Accepted, response);
-
-        //    //if (response.statusCode == 500)
-        //    //    if (modelState != null)
-        //    //    {
-        //    //        //if (!modelState.IsValid)
-        //    //        //{
-        //    //        //    return new DataMatchUploadResponse();
-        //    //        //}
-        //    //        result = Request.CreateResponse(HttpStatusCode.InternalServerError, response);
-        //    //    }
-        //    //    else
-        //    //    {
-        //    //        result = Request.CreateResponse(HttpStatusCode.InternalServerError, response);
-        //    //    }
-
-        //    //return result;
-
-        //    return new DataMatchUploadResponse();
-        //}
         public DataMatchUploadResponse Validate(DataMatchUploadResponse dataMatchUploadResponse)
         {
             List<ErrorData> _errors = new List<ErrorData>();
             int _totalRecords = dataMatchUploadResponse.ResponseDetails.Count;
             int _errorRecords = 0;
+
+            #region HeaderValidations
             if (dataMatchUploadResponse.ResponseHeader.errorData == null)
             {
                 dataMatchUploadResponse.ResponseHeader.errorData = new List<ErrorData>();
@@ -296,7 +231,9 @@ namespace MC.Track.FileValidationAPI
                 dataMatchUploadResponse.ResponseDetails = null;
                 return dataMatchUploadResponse;
             }
+            #endregion
 
+            #region DetailValidation
             for (int i = 0; i < _totalRecords; i++)
             {
                 _errors = new List<ErrorData>();
@@ -517,6 +454,7 @@ namespace MC.Track.FileValidationAPI
             }
             dataMatchUploadResponse.ResponseHeader.matchStatistics.totalRecords = _totalRecords;
             dataMatchUploadResponse.ResponseHeader.matchStatistics.errorRecords = _errorRecords;
+            #endregion
             return dataMatchUploadResponse;
         }
 
