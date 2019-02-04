@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web.Http;
 using System.Web.Http.Description;
@@ -11,81 +13,55 @@ namespace MC.Track.FileValidationAPI
 {
     public class FileValidationController : ApiController
     {
-        public string connectionString
-        {
-            get
-            {
-                return "Data Source=(LocalDB)\\MSSQLLocalDB;AttachDbFilename="+ AppDomain.CurrentDomain.BaseDirectory + "App_Data\\MCAPIDB.mdf" + ";Integrated Security=True";
-            }
-            set { }
-        }
+        private static readonly List<DataMatchUploadRequest> UploadRequests = new List<DataMatchUploadRequest>();
+
         [HttpPost]
-        [Route("ValidatePayload")]
         [ResponseType(typeof(DataMatchUploadResponse))]
-        public async Task<DataMatchUploadResponse> ValidatePayload([FromBody] DataMatchUploadRequest dataMatchUploadRequest)
+        public async Task<DataMatchUploadResponse> Post([FromBody] DataMatchUploadRequest dataMatchUploadRequest)
         {
-            DataMatchUploadResponse _dataMatchUploadResponse = new DataMatchUploadResponse();
-            _dataMatchUploadResponse.ResponseHeader = new ResponseHeader(dataMatchUploadRequest.RequestHeader);
-            _dataMatchUploadResponse.ResponseDetails = new List<ResponseDetail>();
-            foreach (Detail _detail in dataMatchUploadRequest.RequestDetail)
+            DataMatchUploadResponse dataMatchUploadResponse = new DataMatchUploadResponse();
+            dataMatchUploadResponse.fileId = GetFileIdFromHeader();
+            dataMatchUploadResponse.businessId = GetBusinessIdFromHeader();
+            dataMatchUploadResponse.ResponseHeader = new ResponseHeader(dataMatchUploadRequest.RequestHeader);
+            dataMatchUploadResponse.ResponseDetails = new List<ResponseDetail>();
+            foreach (Detail detail in dataMatchUploadRequest.RequestDetail)
             {
-                ResponseDetail _responseDetail = new ResponseDetail(_detail);
-                _dataMatchUploadResponse.ResponseDetails.Add(_responseDetail);
+                ResponseDetail responseDetail = new ResponseDetail(detail);
+                dataMatchUploadResponse.ResponseDetails.Add(responseDetail);
             }
-            _dataMatchUploadResponse = Validate(_dataMatchUploadResponse);
-            if (_dataMatchUploadResponse.ResponseHeader.errorData.Count > 0 || _dataMatchUploadResponse.ResponseHeader.matchStatistics.errorRecords > 0)
-            {
-                _dataMatchUploadResponse.ResponseHeader.ordertype = null;
-                _dataMatchUploadResponse.ResponseHeader.businessid = null;
-                _dataMatchUploadResponse.ResponseHeader.email = null;
-                _dataMatchUploadResponse.ResponseHeader.matchtype = null;
-                _dataMatchUploadResponse.ResponseHeader.noofrecords = null;
-                if (_dataMatchUploadResponse.ResponseHeader.errorData.Count > 0)
-                {
-                    _dataMatchUploadResponse.ResponseHeader.matchStatistics = null;
-                }
-                else
-                {
-                    _dataMatchUploadResponse.ResponseHeader.errorData = null;
-                }
-                return _dataMatchUploadResponse;
-            }
-            System.Net.Http.Headers.HttpRequestHeaders headers = this.Request.Headers;
-            string businessId = string.Empty;
-            string fileId = string.Empty;
-            if (headers.Contains("businessId"))
-            {
-                businessId = headers.GetValues("businessId").FirstOrDefault();
-            }
-            if (headers.Contains("businessId"))
-            {
-                fileId = headers.GetValues("fileId").FirstOrDefault();
-            }
-            InsertIntoSQL(dataMatchUploadRequest);
-            return _dataMatchUploadResponse;
-            //return GenerateResponse(await _dataMatchUploadResponse.UploadDataMatchFile(UploadedFile, businessId, fileId));
+            dataMatchUploadResponse = Validate(dataMatchUploadResponse);
+            AddRecord(dataMatchUploadRequest);
+            return dataMatchUploadResponse;
         }
-        
-        public DataMatchUploadResponse Validate(DataMatchUploadResponse dataMatchUploadResponse)
+        private string GetFileIdFromHeader()
+        {
+            var fileIdHeader = GetHeader("fileId");
+            return fileIdHeader?.Value?.FirstOrDefault();
+        }
+        private string GetBusinessIdFromHeader()
+        {
+            var businessIdHeader = GetHeader("businessId");
+            return businessIdHeader?.Value?.FirstOrDefault();
+        }
+        private KeyValuePair<string, IEnumerable<string>>? GetHeader(string headerKey)
+        {
+            return Request?.Headers?.FirstOrDefault(h => h.Key.Equals(headerKey, StringComparison.InvariantCultureIgnoreCase));
+        }
+        private DataMatchUploadResponse Validate(DataMatchUploadResponse dataMatchUploadResponse)
         {
             List<ErrorData> _errors = new List<ErrorData>();
             int _totalRecords = dataMatchUploadResponse.ResponseDetails.Count;
             int _errorRecords = 0;
 
             #region HeaderValidations
-            if (dataMatchUploadResponse.ResponseHeader.errorData == null)
-            {
-                dataMatchUploadResponse.ResponseHeader.errorData = new List<ErrorData>();
-            }
-            dataMatchUploadResponse.ResponseHeader.errorData.Clear();
             if (dataMatchUploadResponse.ResponseHeader.orderid == null)
             {
                 _errors.Add(new ErrorData()
                 {
-                    errorField = "orderid",
-                    errorCause = "INVALID_REQUEST",
+                    errorField = "orderId",
+                    errorCause = Constants.ErrorCause,
                     errorExplanation = "orderId field is not present",
-                    errorValidationType = "MISSING"
+                    errorValidationType = Constants.MissingFieldCategory
                 });
                 dataMatchUploadResponse.ResponseHeader.orderid = "null";
             }
@@ -96,9 +72,9 @@ namespace MC.Track.FileValidationAPI
                     _errors.Add(new ErrorData()
                     {
                         errorField = "orderid",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "value provided in orderId field is not valid",
-                        errorValidationType = "INVALID"
+                        errorValidationType = Constants.InvalidFieldCategory
                     });
                     dataMatchUploadResponse.ResponseHeader.orderid = "null";
                 }
@@ -109,57 +85,56 @@ namespace MC.Track.FileValidationAPI
                 _errors.Add(new ErrorData()
                 {
                     errorField = "orderType",
-                    errorCause = "INVALID_REQUEST",
+                    errorCause = Constants.ErrorCause,
                     errorExplanation = "orderType field is not present",
-                    errorValidationType = "MISSING"
+                    errorValidationType = Constants.MissingFieldCategory
                 });
                 dataMatchUploadResponse.ResponseHeader.ordertype = "null";
             }
-            else
+            if (dataMatchUploadResponse.ResponseHeader.ordertype != null &&
+            !(dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() =="new" ||
+            dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing"))
             {
-                if (!((dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "new") || 
-                    (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing")))
+                _errors.Add(new ErrorData()
                 {
-                    _errors.Add(new ErrorData()
-                    {
-                        errorField = "orderType",
-                        errorCause = "INVALID_REQUEST",
-                        errorExplanation = "value provided in orderType field is not valid",
-                        errorValidationType = "INVALID"
-                    });
-                }
+                    errorField = "orderType",
+                    errorCause = Constants.ErrorCause,
+                    errorExplanation = "value provided in orderType field is not valid",
+                    errorValidationType = Constants.InvalidFieldCategory
+                });
             }
-            if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "new" && 
-                (GetFromSQL("select ordertype from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "'").Rows.Count > 0))
+            if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "new" &&
+            OrderIdExists(dataMatchUploadResponse.ResponseHeader.orderid))
             {
                 _errors.Add(new ErrorData()
                 {
                     errorField = "orderId",
-                    errorCause = "INVALID_REQUEST",
+                    errorCause = Constants.ErrorCause,
                     errorExplanation = "value provided in orderId field is duplicate",
-                    errorValidationType = "INVALID"
+                    errorValidationType = Constants.InvalidFieldCategory
                 });
             }
-            if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" && 
-                (GetFromSQL("select ordertype from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "'").Rows.Count == 0))
+
+            if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
+            !OrderIdExists(dataMatchUploadResponse.ResponseHeader.orderid))
             {
                 _errors.Add(new ErrorData()
                 {
                     errorField = "orderid",
-                    errorCause = "INVALID_REQUEST",
+                    errorCause = Constants.ErrorCause,
                     errorExplanation = "value provided in orderId field does not exist",
-                    errorValidationType = "MISSING"
+                    errorValidationType = Constants.MissingFieldCategory
                 });
             }
-            
+
             if (dataMatchUploadResponse.ResponseHeader.businessid == null)
             {
                 _errors.Add(new ErrorData()
                 {
                     errorField = "businessId",
-                    errorCause = "INVALID_REQUEST",
+                    errorCause = Constants.ErrorCause,
                     errorExplanation = "businessId field is not present",
-                    errorValidationType = "MISSING"
+                    errorValidationType = Constants.MissingFieldCategory
                 });
             }
             else
@@ -169,9 +144,9 @@ namespace MC.Track.FileValidationAPI
                     _errors.Add(new ErrorData()
                     {
                         errorField = "businessId",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "value provided in businessId field is not valid",
-                        errorValidationType = "INVALID"
+                        errorValidationType = Constants.InvalidFieldCategory
                     });
                 }
             }
@@ -181,20 +156,20 @@ namespace MC.Track.FileValidationAPI
                 _errors.Add(new ErrorData()
                 {
                     errorField = "matchType",
-                    errorCause = "INVALID_REQUEST",
+                    errorCause = Constants.ErrorCause,
                     errorExplanation = "value provided in matchType is not valid",
-                    errorValidationType = "INVALID"
+                    errorValidationType = Constants.InvalidFieldCategory
                 });
             }
-            
+
             if (dataMatchUploadResponse.ResponseHeader.noofrecords == null)
             {
                 _errors.Add(new ErrorData()
                 {
                     errorField = "noofRecords",
-                    errorCause = "INVALID_REQUEST",
+                    errorCause = Constants.ErrorCause,
                     errorExplanation = "noofRecords is not present",
-                    errorValidationType = "MISSING"
+                    errorValidationType = Constants.MissingFieldCategory
                 });
             }
             else
@@ -204,30 +179,28 @@ namespace MC.Track.FileValidationAPI
                     _errors.Add(new ErrorData()
                     {
                         errorField = "noofRecords",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "value provided in noofRecords field is not valid",
-                        errorValidationType = "INVALID"
+                        errorValidationType = Constants.InvalidFieldCategory
                     });
                 }
             }
 
-            if (dataMatchUploadResponse.ResponseHeader.email == string.Empty)
+
+            if (!IsValidEmail(dataMatchUploadResponse.ResponseHeader.email))
             {
                 _errors.Add(new ErrorData()
                 {
                     errorField = "email",
-                    errorCause = "INVALID_REQUEST",
+                    errorCause = Constants.ErrorCause,
                     errorExplanation = "value provided in email field is not valid",
-                    errorValidationType = "INVALID"
+                    errorValidationType = Constants.InvalidFieldCategory
                 });
             }
 
-            if (_errors.Count > 0)
+            if (_errors.Any())
             {
-                foreach (ErrorData _error in _errors)
-                {
-                    dataMatchUploadResponse.ResponseHeader.errorData.Add(_error);
-                }
+                dataMatchUploadResponse.ResponseHeader.errorData.AddRange(_errors);
                 dataMatchUploadResponse.ResponseDetails = null;
                 return dataMatchUploadResponse;
             }
@@ -247,32 +220,34 @@ namespace MC.Track.FileValidationAPI
                     _errors.Add(new ErrorData()
                     {
                         errorField = "id",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "id is not present",
-                        errorValidationType = "MISSING"
+                        errorValidationType = Constants.MissingFieldCategory
                     });
                 }
 
-                if (dataMatchUploadResponse.ResponseHeader.ordertype == "new" && dataMatchUploadResponse.ResponseDetails[i].id != null && (dataMatchUploadResponse.ResponseDetails.Where(_ => _.id == dataMatchUploadResponse.ResponseDetails[i].id).Count() > 1))
+                if (dataMatchUploadResponse.ResponseHeader.ordertype == "new" &&
+                dataMatchUploadResponse.ResponseDetails[i].id != null &&
+                (dataMatchUploadResponse.ResponseDetails.Where(_ => _.id == dataMatchUploadResponse.ResponseDetails[i].id).Count() > 1))
                 {
                     _errors.Add(new ErrorData()
                     {
                         errorField = "id",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "value provided in id field is duplicate",
-                        errorValidationType = "INVALID"
+                        errorValidationType = Constants.InvalidFieldCategory
                     });
                 }
 
                 if (dataMatchUploadResponse.ResponseHeader.ordertype == "existing" &&
-                    GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and id = '" + dataMatchUploadResponse.ResponseDetails[i].id + "'").Rows.Count < 1)
+                OrderIdAndIdExists(dataMatchUploadResponse.ResponseHeader.orderid, dataMatchUploadResponse.ResponseDetails[i].id))
                 {
                     _errors.Add(new ErrorData()
                     {
                         errorField = "id",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "value provided in id field does not exist in the order",
-                        errorValidationType = "INVALID"
+                        errorValidationType = Constants.InvalidFieldCategory
                     });
                 }
 
@@ -281,9 +256,9 @@ namespace MC.Track.FileValidationAPI
                     _errors.Add(new ErrorData()
                     {
                         errorField = "requesttype",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "requestType is not present",
-                        errorValidationType = "MISSING"
+                        errorValidationType = Constants.MissingFieldCategory
                     });
                     dataMatchUploadResponse.ResponseDetails[i].requesttype = string.Empty;
                 }
@@ -292,73 +267,73 @@ namespace MC.Track.FileValidationAPI
                     _errors.Add(new ErrorData()
                     {
                         errorField = "requesttype",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "value provided in requestType field is not valid",
-                        errorValidationType = "INVALID"
+                        errorValidationType = Constants.InvalidFieldCategory
                     });
                 }
 
                 if ((dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "new") &&
-                    ((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link") ||
-                    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update")))
+                ((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link") ||
+                (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update")))
                 {
                     _errors.Add(new ErrorData()
                     {
                         errorField = "requesttype",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "value provided in requestType field cannot be 'update' or 'link' ",
-                        errorValidationType = "INVALID"
+                        errorValidationType = Constants.InvalidFieldCategory
                     });
                 }
 
                 if ((dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing") &&
-                    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") &&
-                    (!(GetFromSQL("select trackid from BLOB where id = '" + dataMatchUploadResponse.ResponseDetails[i].id + "' and trackid ='" + (dataMatchUploadResponse.ResponseDetails[i].trackid??"") +"'").Rows.Count>0)))
+                (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") &&
+                !IdTrackIdExists(dataMatchUploadResponse.ResponseDetails[i].id, dataMatchUploadResponse.ResponseDetails[i].trackid))
                 {
                     _errors.Add(new ErrorData()
                     {
                         errorField = "trackid",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "value provided in the trackId field for requesting updates does not exist",
-                        errorValidationType = "INVALID"
+                        errorValidationType = Constants.InvalidFieldCategory
                     });
                 }
 
                 //if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") ||
-                //    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
-                //    (dataMatchUploadResponse.ResponseDetails[i].trackid == null))
+                // (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
+                // (dataMatchUploadResponse.ResponseDetails[i].trackid == null))
                 //{
-                //    _errors.Add(new ErrorData()
-                //    {
-                //        errorField = "trackid",
-                //        errorCause = "INVALID_REQUEST",
-                //        errorExplanation = "value provided in the trackId field for requesting updates is not for a purchased record",
-                //        errorValidationType = "MISSING"
-                //    });
+                // _errors.Add(new ErrorData()
+                // {
+                // errorField = "trackid",
+                // errorCause = CONSTANTS.ErrorCause,
+                // errorExplanation = "value provided in the trackId field for requesting updates is not for a purchased record",
+                // errorValidationType = CONSTANTS.MissingFieldCategory
+                // });
                 //}
 
                 if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") ||
-                    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
-                    (dataMatchUploadResponse.ResponseDetails[i].trackid == null))
+                (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
+                (dataMatchUploadResponse.ResponseDetails[i].trackid == null))
                 {
                     _errors.Add(new ErrorData()
                     {
                         errorField = "trackid",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "trackId is not present",
-                        errorValidationType = "MISSING"
+                        errorValidationType = Constants.MissingFieldCategory
                     });
                 }
                 else if (((dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "update") ||
-                    (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
-                    (dataMatchUploadResponse.ResponseDetails[i].trackid == string.Empty))
+                (dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")) &&
+                (dataMatchUploadResponse.ResponseDetails[i].trackid == string.Empty))
                 {
                     _errors.Add(new ErrorData()
                     {
                         errorField = "trackid",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "value provided in the trackId field is not valid",
-                        errorValidationType = "INVALID"
+                        errorValidationType = Constants.InvalidFieldCategory
                     });
                 }
 
@@ -367,9 +342,9 @@ namespace MC.Track.FileValidationAPI
                     _errors.Add(new ErrorData()
                     {
                         errorField = "companyName",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "companyName is not present",
-                        errorValidationType = "MISSING"
+                        errorValidationType = Constants.MissingFieldCategory
                     });
                 }
                 if (dataMatchUploadResponse.ResponseDetails[i].monitoringType == string.Empty)
@@ -377,75 +352,47 @@ namespace MC.Track.FileValidationAPI
                     _errors.Add(new ErrorData()
                     {
                         errorField = "monitoringType",
-                        errorCause = "INVALID_REQUEST",
+                        errorCause = Constants.ErrorCause,
                         errorExplanation = "value provided in monitoring field is not valid",
-                        errorValidationType = "INVALID"
+                        errorValidationType = Constants.InvalidFieldCategory
                     });
                 }
-                
+
                 if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
-                    dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link")
+                dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
+                dataMatchUploadResponse.ResponseDetails[i].trackid == null &&
+                dataMatchUploadResponse.ResponseDetails[i].linking != null &&
+                dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance.Any() &&
+                string.IsNullOrEmpty(dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId))
                 {
-                    if (dataMatchUploadResponse.ResponseDetails[i].trackid == null)
+                    _errors.Add(new ErrorData()
                     {
-                        if (dataMatchUploadResponse.ResponseDetails[i].link != null && dataMatchUploadResponse.ResponseDetails[i].link.compliance.Count > 0 && String.IsNullOrEmpty(dataMatchUploadResponse.ResponseDetails[i].link.compliance[0].referenceId))                            
-                        {
-                            _errors.Add(new ErrorData()
-                            {
-                                errorField = "requestType",
-                                errorCause = "INVALID_REQUEST",
-                                errorExplanation = "trackId or referenceId not present in the request for linking",
-                                errorValidationType = "INVALID"
-                            });
-                        }
-                        else if (GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and referenceId = '" + dataMatchUploadResponse.ResponseDetails[i].link.compliance[0].referenceId + "'").Rows.Count < 1)
-                        {
-                            _errors.Add(new ErrorData()
-                            {
-                                errorField = "referenceId",
-                                errorCause = "INVALID_REQUEST",
-                                errorExplanation = "value provided in referenceId to link trade directory record to compliance record is not valid",
-                                errorValidationType = "INVALID"
-                            });
-                        }
-                    }
-                    else
-                    {
-                        if(
-                            (dataMatchUploadResponse.ResponseDetails[i].link.compliance != null) &&
-                            (dataMatchUploadResponse.ResponseDetails[i].link.compliance.Count > 0) &&
-                            dataMatchUploadResponse.ResponseDetails[i].link.compliance[0].referenceId != null
-                            )
-                        {
-                            _errors.Add(new ErrorData()
-                            {
-                                errorField = "link",
-                                errorCause = "INVALID_REQUEST",
-                                errorExplanation = "trackId and referenceId should not be provided in the same request for linking",
-                                errorValidationType = "INVALID"
-                            });
-                        }                        
-                        else if (GetFromSQL("select * from BLOB where orderid = '" + dataMatchUploadResponse.ResponseHeader.orderid + "' and linktrackid = '" + dataMatchUploadResponse.ResponseDetails[i].trackid + "'").Rows.Count < 1)
-                        {
-                            _errors.Add(new ErrorData()
-                            {
-                                errorField = "trackId",
-                                errorCause = "INVALID_REQUEST",
-                                errorExplanation = "value provided in trackId field to link a request record to a trade directory record is not valid",
-                                errorValidationType = "INVALID"
-                            });
-                        }
-                    }
+                        errorField = "requestType",
+                        errorCause = Constants.ErrorCause,
+                        errorExplanation = "trackId or referenceId not present in the request for linking",
+                        errorValidationType = Constants.InvalidFieldCategory
+                    });
                 }
 
-                if (_errors.Count > 0)
+                if (dataMatchUploadResponse.ResponseHeader.ordertype.ToLower() == "existing" &&
+                dataMatchUploadResponse.ResponseDetails[i].requesttype.ToLower() == "link" &&
+                dataMatchUploadResponse.ResponseDetails[i].trackid != null &&
+                dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance != null &&
+                dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance.Count > 0 &&
+                dataMatchUploadResponse.ResponseDetails[i].linking.linkcompliance[0].referenceId != null)
                 {
-                    dataMatchUploadResponse.ResponseDetails[i].errorData.Concat(_errors);
-                    _errorRecords++;
+                    _errors.Add(new ErrorData()
+                    {
+                        errorField = "link",
+                        errorCause = Constants.ErrorCause,
+                        errorExplanation = "trackId and referenceId should not be provided in the same request for linking",
+                        errorValidationType = Constants.InvalidFieldCategory
+                    });
                 }
-                foreach (ErrorData _errorData in _errors)
+                if (_errors.Any())
                 {
-                    dataMatchUploadResponse.ResponseDetails[i].errorData.Add(_errorData);
+                    dataMatchUploadResponse.ResponseDetails[i].errorData.AddRange(_errors);
+                    _errorRecords++;
                 }
             }
             if (dataMatchUploadResponse.ResponseHeader.matchStatistics == null)
@@ -457,108 +404,89 @@ namespace MC.Track.FileValidationAPI
             #endregion
             return dataMatchUploadResponse;
         }
-
-        public DataTable GetFromSQL(string query)
+        private bool OrderIdExists(string orderId)
         {
-            DataTable _dataTable = new DataTable();
-            SqlConnection _sqlConnection = new SqlConnection(connectionString);
-            try
-            {
-                SqlCommand _sqlCommand = new SqlCommand(query, _sqlConnection);
-                SqlDataAdapter _sqlDataAdapter = new SqlDataAdapter(_sqlCommand);
-                _sqlConnection.Open();
-                _sqlDataAdapter.Fill(_dataTable);
-                _sqlConnection.Close();
-                _sqlDataAdapter.Dispose();
-            }
-            catch (Exception _exception)
-            {
-
-            }
-            finally
-            {
-                if (_sqlConnection.State != ConnectionState.Closed)
-                {
-                    _sqlConnection.Close();
-                }
-            }
-            return _dataTable;
+            return UploadRequests.Where(r => r.RequestHeader?.orderid == orderId)
+            .Any();
         }
-
-        public bool InsertIntoSQL(DataMatchUploadRequest dataMatchUploadRequest)
+        private bool IdTrackIdExists(string id, string trackId)
         {
-            SqlConnection _sqlConnection = new SqlConnection(connectionString);
-            SqlCommand _sqlCommand;
-            try
+            return UploadRequests.SelectMany(r => r.RequestDetail ?? new List<Detail>())
+            .Where(rd => rd?.id == id && rd.trackid == trackId)
+            .Any();
+        }
+        private bool OrderIdTrackIdExists(string orderId, string trackId)
+        {
+            return UploadRequests.Where(r => r.RequestHeader?.orderid == orderId)
+            .SelectMany(r => r.RequestDetail ?? new List<Detail>())
+            .Where(rd => rd?.trackid == trackId)
+            .Any();
+        }
+        private bool OrderIdAndIdExists(string orderId, string id)
+        {
+            return UploadRequests.Where(r => r.RequestHeader?.orderid == orderId)
+            .SelectMany(r => r.RequestDetail ?? new List<Detail>())
+            .Where(rd => rd?.id == id)
+            .Any();
+        }
+        private void AddRecord(DataMatchUploadRequest dataMatchUploadRequest)
+        {
+            if (dataMatchUploadRequest == null)
             {
-                foreach (Detail _detail in dataMatchUploadRequest.RequestDetail)
-                {
-                    Linking _linking = new Linking();
-                    Linkcompliance _linkcompliance = new Linkcompliance() { referenceId = "" };
-                    _linking.trackid = "";
-                    _linking.compliance = new List<Linkcompliance>();
-                    _linking.compliance.Add(_linkcompliance);
-                    if (_detail.link == null)
-                    {
-                        _detail.link = _linking;
-                    }
-                    if (_detail.link.trackid == null)
-                    {
-                        _detail.link.trackid = "";
-                    }
-                    if (_detail.link.compliance == null)
-                    {
-                        _detail.link.compliance = new List<Linkcompliance>();
-                        _detail.link.compliance.Add(_linkcompliance);
-                    }
-
-                    string _insertQuery = "INSERT INTO [dbo].[BLOB] ([orderid], [ordertype], [businessid], [matchtype], [noofrecords], [email], " +
-                        "[id], [requesttype], [trackid], [companyname], [address1], [address2], [address3], [address4], [city], [state], [country], [zip], " +
-                        "[phone], [url], [contact], [ein], [tin], [vat], [registrationnumber], [monitoringType], [linktrackid], [referenceid], [CustomFields]) " +
-                        "VALUES ( " +
-                        " N'" + (dataMatchUploadRequest.RequestHeader.orderid)
-                    + "', N'" + (dataMatchUploadRequest.RequestHeader.ordertype)
-                    + "', N'" + (dataMatchUploadRequest.RequestHeader.businessid)
-                    + "', N'" + (dataMatchUploadRequest.RequestHeader.matchtype)
-                    + "', N'" + (dataMatchUploadRequest.RequestHeader.noofrecords)
-                    + "', N'" + (dataMatchUploadRequest.RequestHeader.email)
-                    + "', N'" + (_detail.id)
-                    + "', N'" + (_detail.requesttype)
-                    + "', N'" + (_detail.trackid)
-                    + "', N'" + (_detail.companyname)
-                    + "', N'" + (_detail.address.address1)
-                    + "', N'" + (_detail.address.address2)
-                    + "', N'" + (_detail.address.address3)
-                    + "', N'" + (_detail.address.address4)
-                    + "', N'" + (_detail.address.city)
-                    + "', N'" + (_detail.address.state)
-                    + "', N'" + (_detail.address.country)
-                    + "', N'" + (_detail.address.zip)
-                    + "', N'" + (_detail.phone)
-                    + "', N'" + (_detail.url)
-                    + "', N'" + (_detail.contact)
-                    + "', N'" + (_detail.ein)
-                    + "', N'" + (_detail.tin)
-                    + "', N'" + (_detail.vat)
-                    + "', N'" + (_detail.registrationnumber)
-                    + "', N'" + (_detail.monitoringType)
-                    + "', N'" + (_detail.link.trackid)
-                    + "', N'" + (_detail.link.compliance[0].referenceId)
-                    + "', N'" + (_detail.customfields)
-                    + "')";
-                    _sqlCommand = new SqlCommand(_insertQuery, _sqlConnection);
-                    _sqlConnection.Open();
-                    _sqlCommand.ExecuteNonQuery();
-                }
-                return true;
+                return;
             }
-            catch (Exception _exception)
+            UploadRequests.Add(dataMatchUploadRequest);
+        }
+        //Sourced from https://docs.microsoft.com/en-us/dotnet/standard/base-types/how-to-verify-that-strings-are-in-valid-email-format
+        //and https://stackoverflow.com/questions/16167983/best-regular-expression-for-email-validation-in-c-sharp
+        //and https://azuliadesigns.com/validate-email-addresses/
+        // ****As recommended by all sources in public, the best way to validate an email address is to send an email to it.****
+        private static bool IsValidEmail(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
             {
                 return false;
             }
-            finally
+            if (!Regex.IsMatch(email, @"\A(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\Z", RegexOptions.IgnoreCase))
             {
-                _sqlConnection.Close();
+                return false;
+            }
+            try
+            {             
+                System.Net.Mail.MailAddress _mailAddress = new System.Net.Mail.MailAddress(email);
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+            try
+            {
+                email = Regex.Replace(email, @"(@)(.+)$", DomainMapper, RegexOptions.None, TimeSpan.FromMilliseconds(200));
+                string DomainMapper(Match match)
+                {
+                    var idn = new IdnMapping();
+                    var domainName = idn.GetAscii(match.Groups[2].Value);
+                    return match.Groups[1].Value + domainName;
+                }
+            }
+            catch (RegexMatchTimeoutException e)
+            {
+                return false;
+            }
+            catch (ArgumentException e)
+            {
+                return false;
+            }
+            try
+            {
+                return Regex.IsMatch(email,
+                    @"^(?("")("".+?(?<!\\)""@)|(([0-9a-z]((\.(?!\.))|[-!#\$%&'\*\+/=\?\^`\{\}\|~\w])*)(?<=[0-9a-z])@))" +
+                    @"(?(\[)(\[(\d{1,3}\.){3}\d{1,3}\])|(([0-9a-z][-0-9a-z]*[0-9a-z]*\.)+[a-z0-9][\-a-z0-9]{0,22}[a-z0-9]))$",
+                    RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(250));
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return false;
             }
         }
     }
