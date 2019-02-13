@@ -1,0 +1,889 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MC.TD.FileProcessing.Base.Interfaces;
+using MC.TD.FileProcessing.Domain;
+using MC.TD.FileProcessing.Domain.DataMatchFileProcessingDto;
+using MC.TD.FileProcessing.Implementation.ApiHealper.DataMatch;
+using MC.TD.FileProcessing.Implementation.ApiHealper.Purchase;
+using MC.TD.FileProcessing.Implementation.DataMatch;
+using MC.TD.FileProcessing.Implementation.Purchase;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
+using Newtonsoft.Json;
+
+namespace MC.TD.FileProcessing.Implementation
+{
+    public class DataMatchFileProcessingService : IDataMatchFileProcessingService
+    {
+        public DataMatchFileProcessingService()
+        {
+            int.TryParse(DataMatchConfig.LikelyMatchMaxCount, out _maxLikelyMatchCount);
+        }
+
+        //TODO: Remove work-around
+        //    Remove these constants, dictionaries and methods. Obtain user keys & organization keys from DB.
+        //    (based on subscription key or certificate auth done at APIM layer)
+        private const long defaultOrganizationKey = 1;
+        private const long defaultAlphaUserKey = 2;
+        private const string baswareBusinessId = "US2019000018756";
+        private const long baswareOrganizationKey = 18840;
+        private const long baswareAlphaUserKey = 33853;
+
+        //Enter specific user / organization details as entries in this dictionary...
+        //e.g. one pair of values for Basware, one pair for MC API team to use on UAT
+        //The key is the string value of DataMatchRequestBody.RequestHeader.businessid
+        //Item1 is user key
+        //Item2 is org key
+        private Dictionary<string, Tuple<long, long>> registrationInfo = new Dictionary<string, Tuple<long, long>>
+        {
+            { baswareBusinessId, new Tuple<long, long>(baswareAlphaUserKey, baswareOrganizationKey) }
+        };
+
+        private long GetAlphaUserKey(DataMatchUploadRequestBody request)
+        {
+            var businessId = request.requestheader.businessid;
+            if (registrationInfo.Keys.Contains(businessId))
+            {
+                return registrationInfo[businessId].Item1;
+            }
+            else
+            {
+                return defaultAlphaUserKey;
+            }
+        }
+
+        private long GetOrganizationUserKey(DataMatchUploadRequestBody request)
+        {
+            var businessId = request.requestheader.businessid;
+            if (registrationInfo.Keys.Contains(businessId))
+            {
+                return registrationInfo[businessId].Item2;
+            }
+            else
+            {
+                return defaultOrganizationKey;
+            }
+        }
+
+        //END Work-around code
+
+        private int _maxLikelyMatchCount = 5;
+
+        public async Task<bool> DataMatchProcess(DataMatchUploadRequestBody request)
+        {
+            var dataMatchResponseBody = new DataMatchResponseBody
+            {
+                responseHeader = new DataMatchBodyResponseHeader
+                {
+                    orderId = request?.requestheader?.orderid,
+                    errorData = request?.requestheader?.errorData ?? new List<ErrorData>()
+                },
+                responseDetail = request?.requestdetail?.Select(rd =>
+                    new DataMatchBodyResponseDetails(rd)).ToList()
+            };
+
+            try
+            {
+                var TradeDirectoryFileType = "TradeDirectory";
+                var PendingFileStatus = "Matching Pending";
+                var csvfields =
+                    "Registered Business Name,Street Address,City,State/Province,Country,Zip,URL,Contact Name,Contact Email Address,TIN,Registration Number,VAT\r\n";
+                var filedata = csvfields;
+                if (request.requestdetail != null)
+                {
+                    foreach (var requestDetail in request.requestdetail)
+                    {
+                        filedata +=
+                           $"{requestDetail.companyname},{requestDetail.address.address1},{requestDetail.address.city},{requestDetail.address.state},{requestDetail.address.country},{requestDetail.address.zip},{requestDetail.url},{requestDetail.contact},email@example.com,{requestDetail.tin},{requestDetail.registrationnumber},{requestDetail.vat}\r\n";
+                    }
+                }
+
+                var requesttofileprocessor = new OrganizationFileUploadRequest
+                {
+                    UploadedBy = "ea222c7e-aa8c-4e1c-a82e-5fccf3fd52d8", // How about this.OrganizationKey
+                    FileName = $"{request.fileId}-{Guid.NewGuid()}.json",
+                    FileData = filedata,
+                    OrganizationKey = GetOrganizationUserKey(request),
+                    FileType = TradeDirectoryFileType,
+                    Status = PendingFileStatus,
+                    StatusMessage = "Uploaded new file.",
+                    AlphaUserKey = GetAlphaUserKey(request)
+                };
+                var dataMatchApiHelper = new DataMatchApiHelper();
+                var responseFileProcessor = await dataMatchApiHelper.UploadFile(requesttofileprocessor);
+                if (responseFileProcessor.IsFailure)
+                {
+                    // add the actual exception information for now until we get logging in place
+                    dataMatchResponseBody.responseHeader.errorData =
+                        dataMatchResponseBody.responseHeader.errorData.Union(new[]
+                        {
+                            new ErrorData
+                            {
+                                errorField = "*",
+                                errorCause = "UPLOAD_FILE_EXCEPTION_OCCURRED",
+                                errorExplanation = responseFileProcessor.ErrorMessage,
+                                errorValidationType = "EXCEPTION"
+                            }
+                        }).ToList();
+                    return false;
+                }
+
+                var requesttorequestprocessor = new RequestProcessRequest
+                {
+                    CorrelationId = responseFileProcessor.Data.CorrelationId,
+                    fileName = requesttofileprocessor.FileName
+                };
+                var responseRequestProcessor = await dataMatchApiHelper.RequestProcessor(requesttorequestprocessor);
+                if (responseRequestProcessor.IsFailure)
+                {
+                    // add the actual exception information for now until we get logging in place
+                    dataMatchResponseBody.responseHeader.errorData =
+                        dataMatchResponseBody.responseHeader.errorData.Union(new[]
+                        {
+                            new ErrorData
+                            {
+                                errorField = "*",
+                                errorCause = "REQUEST_PROCESSOR_EXCEPTION_OCCURRED",
+                                errorExplanation = responseRequestProcessor.ErrorMessage,
+                                errorValidationType = "EXCEPTION"
+                            }
+                        }).ToList();
+                    return false;
+                }
+
+                var uploadedFileRecordRequest = new UploadedFileRecordRequest
+                {
+                    CorrelationId = responseFileProcessor.Data.CorrelationId,
+                    UserId = requesttofileprocessor.UploadedBy
+                };
+                
+                var requestedMatchTypes = new List<string>();
+                switch (request.requestheader.matchtype?.ToUpper().Trim())
+                {
+                    case Constants.MatchTypes.HighConfidence:
+                        requestedMatchTypes.Add(Constants.MatchTypes.HighConfidence);
+                        break;
+                    case Constants.MatchTypes.LikelyMatch:
+                        requestedMatchTypes.Add(Constants.MatchTypes.LikelyMatch);
+                        break;
+                    case Constants.MatchTypes.NoMatch:
+                        requestedMatchTypes.Add(Constants.MatchTypes.NoMatch);
+                        break;
+                    default:
+                        requestedMatchTypes.AddRange(new List<string> { Constants.MatchTypes.HighConfidence, Constants.MatchTypes.LikelyMatch, Constants.MatchTypes.NoMatch });
+                        break;
+                }
+                foreach (var matchType in requestedMatchTypes)
+                {
+                    switch (matchType)
+                    {
+                        case Constants.MatchTypes.HighConfidence:
+                            await GetHighConfidenceFileMatchData(requesttorequestprocessor.CorrelationId, dataMatchResponseBody, request);
+                            break;
+                        case Constants.MatchTypes.LikelyMatch:
+                            await GetLikelyMatchFileMatchData(requesttorequestprocessor.CorrelationId, dataMatchResponseBody, request);
+                            break;
+                        case Constants.MatchTypes.NoMatch:
+                            await GetNoMatchFileData(requesttorequestprocessor.CorrelationId, dataMatchResponseBody, request);
+                            break;
+                        default:
+                            throw new NotImplementedException($"MatchType not supported: {request.requestheader.matchtype}");
+                    }
+                }
+
+                dataMatchResponseBody.responseDetail = GetFilteredResponseDetails(dataMatchResponseBody.responseDetail, request.requestheader.matchtype);
+            }
+            catch (Exception ex)
+            {
+                // add the actual exception information for now until we get logging in place
+                dataMatchResponseBody.responseHeader.errorData =
+                    dataMatchResponseBody.responseHeader.errorData.Union(new[]
+                    {
+                        new ErrorData
+                        {
+                            errorField = "*",
+                            errorCause = "EXCEPTION_OCCURRED",
+                            errorExplanation = ex.Message,
+                            errorValidationType = "EXCEPTION"
+                        }
+                    }).ToList();
+            }
+            finally
+            {
+                // if a failure occurs here, the exception will be caught by the caller
+                await UploadMatchingResponseToBlob(dataMatchResponseBody, null, request.fileId);
+            }
+
+            return true;
+        }
+
+
+        private IList<DataMatchBodyResponseDetails> GetFilteredResponseDetails(IList<DataMatchBodyResponseDetails> responseDetails,
+            string matchtype)
+        {
+            if (!string.IsNullOrWhiteSpace(matchtype)
+                && matchtype.ToUpper() != Constants.MatchTypes.HighConfidence
+                && matchtype.ToUpper() != Constants.MatchTypes.LikelyMatch
+                && matchtype.ToUpper() != Constants.MatchTypes.NoMatch)
+            {
+                return responseDetails;
+            }
+
+            return responseDetails.Where(x => string.IsNullOrWhiteSpace(matchtype)
+                                              || x.matchResults.matchStatus.ToUpper() == matchtype.ToUpper()).ToList();
+        }
+
+        private async Task UploadMatchingResponseToBlob(DataMatchResponseBody responseBody, string businessId, string fileId)
+        {
+            if (!CloudStorageAccount.TryParse(DataMatchConfig.StorageAccountConnectionString, out var account))
+            {
+                throw new ArgumentException($"{nameof(DataMatchConfig.StorageAccountConnectionString)} could not be parsed.");
+            }
+
+            var client = new CloudBlobClient(account.BlobStorageUri.PrimaryUri, account.Credentials);
+            var container = client.GetContainerReference("download");
+            var serializer = new JsonSerializer();
+            var blobName = fileId + ".json";
+            CloudBlockBlob blob = container.GetBlockBlobReference(blobName);
+            blob.Properties.ContentType = "application/json";
+
+            var json = JsonConvert.SerializeObject(responseBody);
+            using (Stream stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
+            {
+                await blob.UploadFromStreamAsync(stream);
+            }
+        }
+
+        private async Task GetNoMatchFileData(string correlationId, DataMatchResponseBody responseBody, DataMatchUploadRequestBody request)
+        {
+            try
+            {
+                var matchData = await GetFileMatchDataByMatchType(Constants.MatchTypes.Api_Input_NoMatch, correlationId, request);
+                responseBody.responseHeader.matchStatistics.noMatch = matchData.SourceRecord.Count.ToString();
+                foreach (var source in matchData.SourceRecord)
+                {
+                    var matchingRequest = request.requestdetail.Where(x => x.companyname.ToUpper() == source.Name.ToUpper()).FirstOrDefault();
+                    if (matchingRequest != null)
+                    {
+                        var matchDetail = new DataMatchBodyResponseDetails();
+                        matchDetail.matchResults.matchStatus = Constants.MatchTypes.NoMatch;
+                        matchDetail.errorData = matchingRequest.errorData;
+                        SetRequestResponseDetailData(matchDetail, matchingRequest, correlationId, request);
+                        responseBody.responseDetail.Add(matchDetail);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                responseBody.responseHeader.errorData.Add(new ErrorData
+                {
+                    errorField = "*",
+                    errorCause = "GET_FILE_RESULT_DATA_EXCEPTION_OCCURRED",
+                    errorExplanation = ex.Message,
+                    errorValidationType = "EXCEPTION"
+                });
+            }
+        }
+
+        private async Task GetLikelyMatchFileMatchData(string correlationId, DataMatchResponseBody responseBody, DataMatchUploadRequestBody request)
+        {
+            try
+            {
+                var matchData = await GetFileMatchDataByMatchType(Constants.MatchTypes.Api_Input_LikelyMatch, correlationId, request);
+                responseBody.responseHeader.matchStatistics.likelyMatches = matchData.MatchedRecord.Count.ToString();
+                foreach (var source in matchData.SourceRecord)
+                {
+                    //find the submitted record that matches one of the sources
+                    var matchingRequest = request.requestdetail.Where(x => x.companyname.ToUpper() == source.Name.ToUpper()).FirstOrDefault();
+                    if (matchingRequest != null)
+                    {
+                        var matchDetail = new DataMatchBodyResponseDetails();
+                        matchDetail.matchResults.matchStatus = Constants.MatchTypes.LikelyMatch;
+                        matchDetail.errorData = matchingRequest.errorData;
+                        matchDetail.matchResults.matchScoreData.overallScore = source.MatchScore ?? 0;
+                        SetRequestResponseDetailData(matchDetail, matchingRequest, correlationId, request);
+                        //loop through all likely matches
+                        var likelyMatches = matchData.MatchedRecord.Where(x => x.RawOrganizationKey == source.SupplierID).Take(_maxLikelyMatchCount);
+                        foreach (var match in likelyMatches)
+                        {
+                            var tradeDirectoryData = await GetTradeDirectoryData(match, request);
+                            var responseMatchData = MapRequestDataToResponseMatchData(tradeDirectoryData, null, match.HasbeenPurchased.HasValue ? match.HasbeenPurchased.Value : false);
+                            matchDetail.matchData.Add(responseMatchData);
+                        }
+                        responseBody.responseDetail.Add(matchDetail);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                responseBody.responseHeader.errorData.Add(new ErrorData
+                {
+                    errorField = "*",
+                    errorCause = "GET_FILE_RESULT_DATA_EXCEPTION_OCCURRED",
+                    errorExplanation = ex.Message,
+                    errorValidationType = "EXCEPTION"
+                });
+            }
+        }
+
+        private async Task GetHighConfidenceFileMatchData(string correlationId, DataMatchResponseBody responseBody, DataMatchUploadRequestBody request)
+        {
+            try
+            {
+                var matchData = await GetFileMatchDataByMatchType(Constants.MatchTypes.Api_Input_HighConfidence, correlationId, request);
+                responseBody.responseHeader.matchStatistics.highConfidence = matchData.MatchedRecord.Count.ToString();
+                foreach (var source in matchData.SourceRecord)
+                {
+                    //match high conf by company name
+                    var matchingRequest = request.requestdetail.Where(x => x.companyname.ToUpper() == source.Name.ToUpper()).FirstOrDefault();
+                    if (matchingRequest != null)
+                    {
+                        var matchDetail = new DataMatchBodyResponseDetails();
+                        matchDetail.matchResults.matchStatus = Constants.MatchTypes.HighConfidence;
+                        matchDetail.errorData = matchingRequest.errorData;
+                        matchDetail.matchResults.matchScoreData.overallScore = source.MatchScore ?? 0;
+                        SetRequestResponseDetailData(matchDetail, matchingRequest, correlationId, request);
+                        //find match data
+                        var requestMatch = matchData.MatchedRecord.Where(x => x.RawOrganizationKey == source.SupplierID).FirstOrDefault();
+                        if (requestMatch != null)
+                        {
+                            //use PurchasedDate because HasbeenPurchased flag always comes back as null
+                            var matchedRecordHasBeenPurchased = requestMatch.PurchasedDate.HasValue;
+                            if (matchingRequest.requesttype.ToUpper() == Constants.OrderTypes.Premium && !matchedRecordHasBeenPurchased)
+                            {
+                                //Purchase premium data
+                                var purchaseRequest = new PurchaseUnPurchaseRequest
+                                {
+                                    CorrelationId = correlationId,
+                                    Subscribe = true,
+                                    SourceIdentifierData = new List<SourceIdentifierType>
+                                    {
+                                        new SourceIdentifierType
+                                        {
+                                            Source = requestMatch.SourceIdentifier,
+                                            SourceId1 = requestMatch.SourceIdentifierId1,
+                                            SourceId2 = requestMatch.SourceIdentifierId2,
+                                            TrackBusinessID = requestMatch.TrackID.ToString()
+                                        }
+                                    }
+                                };
+                                var purchaseApiHelper = new PurchaseApiHelper();
+                                var purchaseResult = await purchaseApiHelper.PurchaseUnsubscribe(purchaseRequest);
+                                if (purchaseResult.ErrorMessages.Any())
+                                {
+                                    var sb = new StringBuilder();
+                                    foreach (var err in purchaseResult.ErrorMessages)
+                                    {
+                                        sb.AppendLine(err.ToString());
+                                    }
+                                    throw new Exception($"Error executing Purchase Request: {sb.ToString()}");
+                                }
+                                //assume that if there wasn't a failure then the record was purchased
+                                if (!purchaseResult.IsFailure)
+                                {
+                                    matchedRecordHasBeenPurchased = true;
+                                }
+                            }
+                            var tradeDirectoryData = await GetTradeDirectoryData(requestMatch, request);
+                            var complianceDetails = await GetComplianceData(requestMatch, request, matchDetail);
+                            var responseMatchData = MapRequestDataToResponseMatchData(tradeDirectoryData, complianceDetails, matchedRecordHasBeenPurchased);
+
+                            matchDetail.matchData.Add(responseMatchData);
+                        }
+                        responseBody.responseDetail.Add(matchDetail);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                responseBody.responseHeader.errorData.Add(new ErrorData
+                {
+                    errorField = "*",
+                    errorCause = "GET_FILE_RESULT_DATA_EXCEPTION_OCCURRED",
+                    errorExplanation = ex.Message,
+                    errorValidationType = "EXCEPTION"
+                });
+            }
+        }
+
+        private async Task<TradeDirectoryOrganization> GetTradeDirectoryData(MatchedRecordType matchedRecordType, DataMatchUploadRequestBody request)
+        {
+            var tid = Convert.ToUInt64(matchedRecordType.TrackID);
+
+            var premiumRecordRequest = new PremiumRecordRequest
+            {
+                trackId = tid,
+                AlphaUserKey = GetAlphaUserKey(request)
+            };
+            var dataMatchApiHelper = new DataMatchApiHelper();
+            var premiumResponse = await dataMatchApiHelper.GetPremiumForRecords(premiumRecordRequest);
+            if (premiumResponse.ErrorMessages.Any())
+            {
+                var sb = new StringBuilder();
+                foreach (var err in premiumResponse.ErrorMessages)
+                {
+                    sb.AppendLine(err.ToString());
+                }
+                throw new Exception($"Error executing Get Premium Records: {sb.ToString()}");
+            }
+
+            return premiumResponse.Data;
+        }
+
+        private async Task<IList<ComplianceDetails>> GetComplianceData(MatchedRecordType matchedRecordType, DataMatchUploadRequestBody request, DataMatchBodyResponseDetails responseDetail)
+        {
+            var complianceDetailsList = new List<ComplianceDetails>();
+
+            var trackId = matchedRecordType.TrackID;
+
+            var dataMatchApiHelper = new DataMatchApiHelper();
+
+            var complianceLinksListRequest = new ComplianceLinksListRequest
+            {
+                TrackID = trackId,
+                UserKey = GetAlphaUserKey(request)
+            };
+            var complianceLinks = await dataMatchApiHelper.GetComplianceLinksList(complianceLinksListRequest);
+            if (complianceLinks.IsFailure)
+            {
+                responseDetail.errorData.Add(new ErrorData
+                {
+                    errorField = "*",
+                    errorCause = "GET_COMPLIANCE_LINKS_LIST_EXCEPTION_OCCURRED",
+                    errorExplanation = complianceLinks.ErrorMessage,
+                    errorValidationType = "EXCEPTION"
+                });
+
+                return complianceDetailsList;
+            }
+
+            foreach (var complianceLink in complianceLinks.Data?.ComplianceLinks)
+            {
+                var complianceDetailsItem = new ComplianceDetails();
+
+                var complianceDetailsRequest = new ComplianceDetailsRequest
+                {
+                    CompanyUniqueID = complianceLink.ComplianceUniqueID
+                };
+                var companyComplianceDetails = await dataMatchApiHelper.GetCompanyComplianceDetails(complianceDetailsRequest);
+                if (companyComplianceDetails.IsFailure)
+                {
+                    responseDetail.errorData.Union(new[]
+                    {
+                        new ErrorData
+                        {
+                            errorField = "*",
+                            errorCause = "GET_COMPANY_COMPLIANCE_DETAILS_EXCEPTION_OCCURRED",
+                            errorExplanation = companyComplianceDetails.ErrorMessage,
+                            errorValidationType = "EXCEPTION"
+                        }
+                    });
+                }
+                else
+                {
+                    complianceDetailsItem.businessAddress = companyComplianceDetails.Data.CompanyOverview.Address;
+                    if (companyComplianceDetails.Data.Aliases.Any())
+                    {
+                        complianceDetailsItem.businessAlias = companyComplianceDetails.Data.Aliases.Select(a => new businessAlias { name = a.Alias }).ToList();
+                        // TODO: get the alias address
+                    }
+                    complianceDetailsItem.businessName = companyComplianceDetails.Data.CompanyOverview.CompanyName;
+                    if (companyComplianceDetails.Data.Documents.Any())
+                    {
+                        complianceDetailsItem.ComplianceDocuments = companyComplianceDetails.Data.Documents.Select(
+                            d => new ComplianceDocuments { name = d.Name, category = d.Category, creationDate = d.CreationDate.ToUniversalTime().ToString() }).ToList();
+                        // TODO: verify that the date appears in the correct format
+                    }
+                    complianceDetailsItem.complianceProfileLink = null; // TODO: get the compliance profile link
+                    if (companyComplianceDetails.Data.ComplianceTypes.Any())
+                    {
+                        complianceDetailsItem.complianceType = new ComplianceType
+                        {
+                            noOfAdverseMedia = GetNumberOfAlertsForComplianceType(Constants.ComplianceTypes.AdverseMedia, companyComplianceDetails.Data.ComplianceTypes),
+                            noOfCorporateBusiness = GetNumberOfAlertsForComplianceType(Constants.ComplianceTypes.CorporateBusiness, companyComplianceDetails.Data.ComplianceTypes),
+                            noOfDisqualifiedDirector = GetNumberOfAlertsForComplianceType(Constants.ComplianceTypes.DisqualifiedDirector, companyComplianceDetails.Data.ComplianceTypes),
+                            noOfFinancialRegulator = GetNumberOfAlertsForComplianceType(Constants.ComplianceTypes.FinancialRegulator, companyComplianceDetails.Data.ComplianceTypes),
+                            noOfIdV = GetNumberOfAlertsForComplianceType(Constants.ComplianceTypes.Idv, companyComplianceDetails.Data.ComplianceTypes),
+                            noOfInsolvency = GetNumberOfAlertsForComplianceType(Constants.ComplianceTypes.Insolvent, companyComplianceDetails.Data.ComplianceTypes),
+                            noOfLawenforcement = GetNumberOfAlertsForComplianceType(Constants.ComplianceTypes.LawEnforcement, companyComplianceDetails.Data.ComplianceTypes),
+                            noOfPep = GetNumberOfAlertsForComplianceType(Constants.ComplianceTypes.Pep, companyComplianceDetails.Data.ComplianceTypes),
+                            noOfSanctions = GetNumberOfAlertsForComplianceType(Constants.ComplianceTypes.Sanction, companyComplianceDetails.Data.ComplianceTypes)
+                        };
+                    }
+                    if (companyComplianceDetails.Data.CompanyNotes.Any())
+                    {
+                        complianceDetailsItem.notes = companyComplianceDetails.Data.CompanyNotes.Select(n => n.Notes).ToList();
+                    }
+                    complianceDetailsItem.possibleProfileLink = null; // TODO: get the possible profile link
+                    complianceDetailsItem.referenceId = companyComplianceDetails.Data.ReferenceID?.FirstOrDefault().ReferenceID; // TODO: determine why there is more than one ref id
+                }
+
+
+                var complianceLinkedBusinessesRequest = new ComplianceLinkedBusinessesRequest
+                {
+                    CompanyUniqueId = complianceLink.ComplianceUniqueID
+                };
+                var complianceLinkedBusinesses = await dataMatchApiHelper.GetComplianceLinkedBusinesses(complianceLinkedBusinessesRequest);
+                if (complianceLinkedBusinesses.IsFailure)
+                {
+                    responseDetail.errorData.Add(new ErrorData
+                    {
+                        errorField = "*",
+                        errorCause = "GET_COMPLIANCE_LINKED_BUSINESSES_EXCEPTION_OCCURRED",
+                        errorExplanation = complianceLinkedBusinesses.ErrorMessage,
+                        errorValidationType = "EXCEPTION"
+                    });
+                }
+                else
+                {
+                    if (complianceLinkedBusinesses.Data.ComplianceLinkedBusinesses.Any())
+                    {
+                        complianceDetailsItem.linkedBusiness = complianceLinkedBusinesses.Data.ComplianceLinkedBusinesses.Select(
+                            clb => new LinkedBusiness { businessName = clb.BusinessName }).ToList();
+                    }
+                }
+
+                var complianceLinkedPersonsRequest = new ComplianceLinkedPersonsRequest
+                {
+                    CompanyUniqueId = complianceLink.ComplianceUniqueID
+                };
+                var complianceLinkedPersons = await dataMatchApiHelper.GetComplianceLinkedPersons(complianceLinkedPersonsRequest);
+                if (complianceLinkedPersons.IsFailure)
+                {
+                    responseDetail.errorData.Add(new ErrorData
+                    {
+                        errorField = "*",
+                        errorCause = "GET_COMPLIANCE_LINKED_PERSONS_EXCEPTION_OCCURRED",
+                        errorExplanation = complianceLinkedPersons.ErrorMessage,
+                        errorValidationType = "EXCEPTION"
+                    });
+
+                    return complianceDetailsList;
+                }
+                if (complianceLinkedPersons.Data.ComplianceLinkedPersons.Any())
+                {
+                    foreach (var complianceLinkedPerson in complianceLinkedPersons.Data?.ComplianceLinkedPersons)
+                    {
+                        var individualItem = new Individual
+                        {
+                            name = complianceLinkedPerson.PersonName,
+                            position = complianceLinkedPerson.Position
+                        };
+                        var linkedPersonDetailsRequest = new LinkedPersonDetailsRequest
+                        {
+                            IndividualUniqueID = complianceLinkedPerson.IndividualUniqueId
+                        };
+                        var linkedPersonDetails = await dataMatchApiHelper.GetComplianceLinkedPersonDetails(linkedPersonDetailsRequest);
+                        if (linkedPersonDetails.IsFailure)
+                        {
+                            responseDetail.errorData.Union(new[]
+                            {
+                                new ErrorData
+                                {
+                                    errorField = "*",
+                                    errorCause = "GET_COMPLIANCE_LINKED_PERSON_DETAILS_EXCEPTION_OCCURRED",
+                                    errorExplanation = linkedPersonDetails.ErrorMessage,
+                                    errorValidationType = "EXCEPTION"
+                                }
+                            });
+                        }
+                        else
+                        {
+                            if (linkedPersonDetails.Data.LinkedPersonComplianceAlerts.Any())
+                            {
+                                individualItem.complianceAssociation =
+                                linkedPersonDetails.Data.LinkedPersonComplianceAlerts.Select(ca => new complianceAssociation { type = ca.ComplianceType }).ToList();
+                            }
+                        }
+                        complianceDetailsItem.individual.Add(individualItem);
+                    }
+                }
+            }
+
+            return complianceDetailsList;
+        }
+
+        private async Task<MatchingResultsResponse> GetFileMatchDataByMatchType(string matchType, string correlationId, DataMatchUploadRequestBody request)
+        {
+            var matchResultsRequest = new MatchingResultsRequest()
+            {
+                CorrellationID = correlationId,
+                MatchType = matchType,
+                //TODO: PageSize will most likely need to be "chunked" if this method has a limit on # of return values
+                PageSize = 100,
+                PageNumber = 1,
+                OrgKey = GetOrganizationUserKey(request),
+                UserKey = GetAlphaUserKey(request),
+                ComplianceFilter = string.Empty,
+                CreditScoreFilter = string.Empty,
+                ShowDuplicates = false,
+                Country = string.Empty,
+                TopUltimateParentIds = 0
+            };
+            var dataMatchApiHelper = new DataMatchApiHelper();
+            var matchResultsResponse = await dataMatchApiHelper.GetFileResultData(matchResultsRequest);
+            if (matchResultsResponse.ErrorMessages.Any())
+            {
+                var sb = new StringBuilder();
+                foreach (var err in matchResultsResponse.ErrorMessages)
+                {
+                    sb.AppendLine(err.ToString());
+                }
+                throw new Exception($"Error executing Matching Results Get File Result Data: {sb.ToString()}");
+            }
+            return matchResultsResponse.Data;
+        }
+
+        private int GetNumberOfAlertsForComplianceType(string complianceType, List<ComplianceTypes> companyComplianceTypes)
+        {
+            var companyComplianceType = companyComplianceTypes.FirstOrDefault(ct => ct.ComplianceType == complianceType);
+            return companyComplianceType != null
+                   ? companyComplianceType.NumberOfAlerts
+                   : 0;
+        }
+
+        private RegisteredBusinessData SetRegisteredBusinessData(TradeDirectoryOrganization tradeDirectoryOrganization, bool isPurchased)
+        {
+            var registeredBusinessData = new RegisteredBusinessData();
+            if (tradeDirectoryOrganization.CompanyDetails != null)
+            {
+                if (!string.IsNullOrEmpty(tradeDirectoryOrganization.CompanyDetails.RegisteredBusinessName))
+                {
+                    registeredBusinessData.businessName =
+                        tradeDirectoryOrganization.CompanyDetails.RegisteredBusinessName;
+                }
+
+                if (tradeDirectoryOrganization.Contacts != null && tradeDirectoryOrganization.Contacts.Any())
+                {
+                    registeredBusinessData.phone =
+                        tradeDirectoryOrganization.Contacts.Select(c => c.PhoneNumber).FirstOrDefault();
+                }
+
+                if (!string.IsNullOrEmpty(tradeDirectoryOrganization.CompanyDetails.Status))
+                {
+                    registeredBusinessData.status = tradeDirectoryOrganization.CompanyDetails.Status;
+                }
+
+                if (!string.IsNullOrEmpty(tradeDirectoryOrganization.CompanyDetails.CompanyURL))
+                {
+                    registeredBusinessData.url = tradeDirectoryOrganization.CompanyDetails.CompanyURL;
+                }
+
+                if (!string.IsNullOrEmpty(tradeDirectoryOrganization.CompanyDetails.TaxID) && isPurchased)
+                {
+                    registeredBusinessData.tin = tradeDirectoryOrganization.CompanyDetails.TaxID;
+                }
+
+                if (!string.IsNullOrEmpty(tradeDirectoryOrganization.CompanyDetails.VAT) && isPurchased)
+                {
+                    registeredBusinessData.vat = tradeDirectoryOrganization.CompanyDetails.VAT;
+                }
+
+                if (!string.IsNullOrEmpty(tradeDirectoryOrganization.CompanyDetails.CompanyRegistrationNumber))
+                {
+                    registeredBusinessData.registrationNumber =
+                        tradeDirectoryOrganization.CompanyDetails.CompanyRegistrationNumber;
+                }
+
+                if (!string.IsNullOrEmpty(tradeDirectoryOrganization.CompanyDetails.DateOfStartingOperations))
+                {
+                    registeredBusinessData.operationStartDate =
+                        tradeDirectoryOrganization.CompanyDetails.DateOfStartingOperations;
+                }
+
+                if (tradeDirectoryOrganization.CompanyDetails.DateOfCompanyRegistration.HasValue
+                    && tradeDirectoryOrganization.CompanyDetails.DateOfCompanyRegistration != DateTime.MinValue)
+                {
+                    registeredBusinessData.registrationDate =
+                        tradeDirectoryOrganization.CompanyDetails.DateOfCompanyRegistration;
+                }
+
+                if (!string.IsNullOrEmpty(tradeDirectoryOrganization.CompanyDetails.CompanyBusinessDescription))
+                {
+                    registeredBusinessData.businessDescription =
+                        tradeDirectoryOrganization.CompanyDetails.CompanyBusinessDescription;
+                }
+
+                registeredBusinessData.address.streetAddress = tradeDirectoryOrganization.CompanyDetails.StreetAddress;
+                registeredBusinessData.address.city = tradeDirectoryOrganization.CompanyDetails.City;
+                registeredBusinessData.address.state = tradeDirectoryOrganization.CompanyDetails.State;
+                registeredBusinessData.address.country = tradeDirectoryOrganization.CompanyDetails.CountryName;
+                registeredBusinessData.address.zip = tradeDirectoryOrganization.CompanyDetails.Zip;
+                registeredBusinessData.status = tradeDirectoryOrganization.CompanyDetails.Status;
+                registeredBusinessData.trackId = tradeDirectoryOrganization.CompanyDetails.TrackID.ToString();
+                ///need profile link
+            }
+            if (tradeDirectoryOrganization.BusinessClassifications.Any())
+            {
+                var businessClassification = tradeDirectoryOrganization.BusinessClassifications.FirstOrDefault(x => x.IsPrimary.HasValue && x.IsPrimary.Value);
+                if (businessClassification != null)
+                {
+                    registeredBusinessData.businessClassification.sic.primaryClassification = businessClassification.BusinessClassification;
+                    registeredBusinessData.businessClassification.sic.primaryCode = businessClassification.SICCode;
+                }
+                var secondaryClassification = tradeDirectoryOrganization.BusinessClassifications.FirstOrDefault(x => x.IsPrimary.HasValue && !x.IsPrimary.Value);
+                if (secondaryClassification != null)
+                {
+                    registeredBusinessData.businessClassification.sic.secondaryClassification = secondaryClassification.BusinessClassification;
+                    registeredBusinessData.businessClassification.sic.secondaryCode = secondaryClassification.SICCode;
+                }
+            }
+            if (tradeDirectoryOrganization.NaicsClassifications.Any())
+            {
+                var naicsClassification = tradeDirectoryOrganization.NaicsClassifications.FirstOrDefault(x => x.IsPrimary.HasValue && x.IsPrimary.Value);
+                if (naicsClassification != null)
+                {
+                    registeredBusinessData.businessClassification.naics.primaryClassification = naicsClassification.NAICSClassification;
+                    registeredBusinessData.businessClassification.naics.primaryCode = naicsClassification.NAICSCode;
+                }
+                var secondaryClassification = tradeDirectoryOrganization.NaicsClassifications.FirstOrDefault(x => x.IsPrimary.HasValue && !x.IsPrimary.Value);
+                if (secondaryClassification != null)
+                {
+                    registeredBusinessData.businessClassification.naics.primaryClassification = secondaryClassification.NAICSClassification;
+                    registeredBusinessData.businessClassification.naics.primaryCode = secondaryClassification.NAICSCode;
+                }
+            }
+            if (tradeDirectoryOrganization.EnhancedData != null)
+            {
+                registeredBusinessData.locationType = tradeDirectoryOrganization.EnhancedData.LocationType;
+                if (isPurchased)
+                {
+                    registeredBusinessData.employeesData.noofGlobalEmployees = tradeDirectoryOrganization.EnhancedData.TotalGlobalEmployees;
+                    registeredBusinessData.employeesData.noofLocalEmployees = tradeDirectoryOrganization.EnhancedData.NumberOfEmployees;
+                }
+                registeredBusinessData.employeesData.employeesDataFlag = (!string.IsNullOrEmpty(tradeDirectoryOrganization.EnhancedData.TotalGlobalEmployees)
+                                                                            || !string.IsNullOrEmpty(tradeDirectoryOrganization.EnhancedData.NumberOfEmployees));
+            }
+            return registeredBusinessData;
+        }
+
+
+        private creditRiskData SetCreditRiskData(TradeDirectoryOrganization tradeDirectoryOrganization, bool isPurchased)
+        {
+            var creditRiskData = new creditRiskData();
+            if (tradeDirectoryOrganization.EnhancedData != null)
+            {
+                if (isPurchased)
+                {
+                    creditRiskData.creditRating = tradeDirectoryOrganization.EnhancedData.CreditRating;
+                }
+                creditRiskData.creditRatingDataFlag = !string.IsNullOrEmpty(tradeDirectoryOrganization.EnhancedData.CreditRating);
+            }
+            return creditRiskData;
+        }
+
+
+        private RevenueData SetRevenueData(TradeDirectoryOrganization tradeDirectoryOrganization, bool isPurchased)
+        {
+            var revenueData = new RevenueData();
+            if (tradeDirectoryOrganization.EnhancedData != null)
+            {
+                if (isPurchased)
+                {
+                    revenueData.revenue = tradeDirectoryOrganization.EnhancedData.Revenue;
+                }
+                revenueData.revenueDataFlag = !string.IsNullOrEmpty(tradeDirectoryOrganization.EnhancedData.Revenue);
+            }
+            return revenueData;
+        }
+
+
+        private void SetRequestResponseDetailData(DataMatchBodyResponseDetails responseDetail, Requestdetail requestDetail, string correlationId, string request)
+        {
+            responseDetail.id = requestDetail.id;
+            responseDetail.errorData = requestDetail.errorData;
+            responseDetail.requestData.companyName = requestDetail.companyname;
+            responseDetail.requestData.address = requestDetail.address;
+            responseDetail.requestData.phone = requestDetail.phone;
+            responseDetail.requestData.url = requestDetail.url;
+            responseDetail.requestData.contact = requestDetail.contact;
+            responseDetail.requestData.ein = requestDetail.ein;
+            responseDetail.requestData.tin = requestDetail.tin;
+            responseDetail.requestData.vat = requestDetail.vat;
+            responseDetail.requestData.registrationNumber = requestDetail.registrationnumber;
+            responseDetail.requestData.customFields = requestDetail.customfields;
+            //ADD CODE INSIDE FOREACH HERE and substitute the fileid and correlationId values with the input parameters
+        }
+
+        private CorporateHierachyDetails SetCorporateHierarchyDetails(TradeDirectoryOrganization tradeDirectoryOrganization, bool isPurchased)
+        {
+            var corpDetails = new CorporateHierachyDetails();
+            if (!isPurchased)
+                return corpDetails;
+
+            return corpDetails;
+        }
+
+        private CorporateHierarchyData SetCorporateHierarchyData(TradeDirectoryOrganization tradeDirectoryOrganization, bool isPurchased)
+        {
+            var corpData = new CorporateHierarchyData();
+            if (tradeDirectoryOrganization.Hierarchy != null)
+            {
+                //TODO: get clarification on what corp hierarchy data needs to be mapped
+            }
+
+            return corpData;
+        }
+
+        private VerificationData SetVerificationData(TradeDirectoryOrganization tradeDirectoryOrganization, bool isPurchased)
+        {
+            var verData = new VerificationData();
+            if (tradeDirectoryOrganization.EnhancedData != null)
+            {
+                verData.verificationDataFlag = (!string.IsNullOrEmpty(tradeDirectoryOrganization.EnhancedData.VerificationStatus) || !string.IsNullOrEmpty(tradeDirectoryOrganization.EnhancedData.VerifiedDate));
+                if (isPurchased)
+                {
+                    verData.verificationDetails.verificationDate = tradeDirectoryOrganization.EnhancedData.VerifiedDate;
+                    verData.verificationDetails.verificationStatus = tradeDirectoryOrganization.EnhancedData.VerificationStatus;
+                }
+            }
+            return verData;
+        }
+
+        private ExecutivesData SetExecutiveData(TradeDirectoryOrganization tradeDirectoryOrganization, bool isPurchased)
+        {
+            var execData = new ExecutivesData();
+            if (tradeDirectoryOrganization.DirectorsAndExecutives != null && tradeDirectoryOrganization.DirectorsAndExecutives.Any())
+            {
+                execData.executivesDataFlag = true;
+                foreach (var exec in tradeDirectoryOrganization.DirectorsAndExecutives)
+                {
+                    execData.executivesDetails.Add(new ExecutivesDetails
+                    {
+                        firstName = exec.FirstName,
+                        lastName = exec.LastName,
+                        title = exec.Title
+                        //TODO: GET ADDRESS DATA
+                    });
+                }
+            }
+            return execData;
+        }
+
+        private ComplianceData SetComplianceData(IList<ComplianceDetails> complianceDetails)
+        {
+            var compData = new ComplianceData();
+            compData.complianceDetails = complianceDetails;
+            compData.complianceDataFlag = compData.complianceDetails.Any();
+            return compData;
+        }
+
+
+        private MatchData MapRequestDataToResponseMatchData(TradeDirectoryOrganization tradeDirectoryOrganization, IList<ComplianceDetails> complianceDetails, bool isPurchased)
+        {
+            var matchData = new MatchData();
+            matchData.registeredBusinessData = SetRegisteredBusinessData(tradeDirectoryOrganization, isPurchased);
+            matchData.creditRiskData = SetCreditRiskData(tradeDirectoryOrganization, isPurchased);
+            matchData.revenueData = SetRevenueData(tradeDirectoryOrganization, isPurchased);
+            matchData.corporateHierarchyData = SetCorporateHierarchyData(tradeDirectoryOrganization, isPurchased);
+            matchData.verificationData = SetVerificationData(tradeDirectoryOrganization, isPurchased);
+            matchData.executivesData = SetExecutiveData(tradeDirectoryOrganization, isPurchased);
+            matchData.complianceData = SetComplianceData(complianceDetails);
+            return matchData;
+        }
+    }
+}
