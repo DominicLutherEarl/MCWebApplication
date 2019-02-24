@@ -1,0 +1,49 @@
+        int _exponentialMaxPower;
+        int _exponentMaxBase;
+
+                    _exponentMaxBase = 10;
+        public void SearchExponentially()
+        {
+            _exponentialMaxPower = ((_currentUpperLimit > _currentLowerLimit) ? _currentUpperLimit : B).ToString().Length;
+            do
+            {
+                if ((_guess == B) || !(_guess > _currentUpperLimit || _guess < _currentLowerLimit))
+                {
+                    _didJudgeRespond = true;
+                    TryToGuess(_guess);
+                    _responseFromJudge = ConsoleReadLine();
+                }
+                if (_responseFromJudge == "TOO_SMALL")
+                {
+                    if (_didJudgeRespond)
+                    {
+                        _currentLowerLimit = _guess;
+                    }
+                    _guess = _currentLowerLimit + Convert.ToInt32(System.Math.Pow(_exponentMaxBase, (_exponentialMaxPower - 1)));
+                }
+                else if (_responseFromJudge == "TOO_BIG")
+                {
+                    if (_didJudgeRespond)
+                    {
+                        _currentUpperLimit = _guess;
+                    }
+                    _guess = _currentLowerLimit + Convert.ToInt32(System.Math.Pow(_exponentMaxBase, (_exponentialMaxPower - 1)));
+                }
+                else if (_responseFromJudge == "WRONG_ANSWER")
+                {
+                    break;
+                }
+                else if (_responseFromJudge == "CORRECT")
+                {
+                    _successCount++;
+                    break;
+                }
+                _exponentMaxBase--;
+                _didJudgeRespond = false;
+                if (_exponentMaxBase == 0)
+                {
+                    _exponentialMaxPower--;
+                    _exponentMaxBase = 10;
+                }
+            } while (N > 0 || (_exponentialMaxPower > 0 && _exponentMaxBase > 0));
+        }
